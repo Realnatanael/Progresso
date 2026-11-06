@@ -1,0 +1,16 @@
+{
+  "name": "progresso",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:api": "npm run dev -w server",
+    "dev:web": "npm run dev -w client"
+  },
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

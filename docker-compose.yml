@@ -1,0 +1,12 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: progresso-mongo
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - progresso-mongo:/data/db
+
+volumes:
+  progresso-mongo:
