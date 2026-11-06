@@ -4,7 +4,7 @@ import { Habit } from '../models/Habit.js';
 import { CheckIn } from '../models/CheckIn.js';
 import { WaterEntry } from '../models/WaterEntry.js';
 import { requireAuth } from '../middleware/auth.js';
-import { computeStreak, isIsoDate, lastDays } from '../lib/dates.js';
+import { computeScheduledStreak, computeStreak, isIsoDate, lastDays, weekdayOf } from '../lib/dates.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -32,7 +32,9 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'Limite de 30 hábitos. Remova um para criar outro.' });
     }
 
-    await Habit.create({ userId: req.user._id, ...fields.value });
+    const payload = { userId: req.user._id, ...fields.value };
+    if (fields.value.kind === 'exercise') payload.activeDays = [1, 3, 5];
+    await Habit.create(payload);
     res.status(201).json(await buildBoard(req.user._id, date));
   } catch (error) {
     next(error);
@@ -58,6 +60,9 @@ router.patch('/:id', async (req, res, next) => {
     habit.title = fields.value.title;
     habit.kind = fields.value.kind;
     habit.goalMl = fields.value.goalMl;
+    if (fields.value.kind === 'exercise' && (!habit.activeDays || habit.activeDays.length === 0)) {
+      habit.activeDays = [1, 3, 5];
+    }
     await habit.save();
     res.json(await buildBoard(req.user._id, date));
   } catch (error) {
@@ -74,12 +79,132 @@ router.post('/:id/toggle', async (req, res, next) => {
     if ((habit.kind || 'check') === 'water') {
       return res.status(400).json({ error: 'A água é anotada em ml, copo por copo.' });
     }
+    if ((habit.kind || 'check') === 'exercise' && !activeDaySet(habit).has(weekdayOf(date))) {
+      return res.status(400).json({ error: 'Hoje não é dia de treino.' });
+    }
 
     const existing = await CheckIn.findOne({ habitId: habit._id, userId: req.user._id, date });
     if (existing) await existing.deleteOne();
     else await CheckIn.create({ habitId: habit._id, userId: req.user._id, date });
 
     res.json(await buildBoard(req.user._id, date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/:id/plan', async (req, res, next) => {
+  try {
+    if (!isIsoDate(req.query.date)) return res.status(400).json({ error: 'Informe a data de hoje.' });
+    const habit = await findOwnedHabit(req.user._id, req.params.id);
+    if (!habit || (habit.kind || 'check') !== 'exercise') {
+      return res.status(404).json({ error: 'Treino não encontrado.' });
+    }
+    res.json(await buildPlan(habit, req.user._id, req.query.date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/days', async (req, res, next) => {
+  try {
+    const date = req.body?.date;
+    if (!isIsoDate(date)) return res.status(400).json({ error: 'Data inválida.' });
+    const habit = await findOwnedHabit(req.user._id, req.params.id);
+    if (!habit || (habit.kind || 'check') !== 'exercise') {
+      return res.status(404).json({ error: 'Treino não encontrado.' });
+    }
+    const activeDays = normalizeDays(req.body?.activeDays);
+    if (activeDays.length === 0) {
+      return res.status(400).json({ error: 'Deixe pelo menos um dia de treino.' });
+    }
+    habit.activeDays = activeDays;
+    await habit.save();
+    res.json(await buildPlan(habit, req.user._id, date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/exercises', async (req, res, next) => {
+  try {
+    const date = req.body?.date;
+    if (!isIsoDate(date)) return res.status(400).json({ error: 'Data inválida.' });
+    const habit = await findOwnedHabit(req.user._id, req.params.id);
+    if (!habit || (habit.kind || 'check') !== 'exercise') {
+      return res.status(404).json({ error: 'Treino não encontrado.' });
+    }
+    const weekday = Number(req.body?.weekday);
+    const name = String(req.body?.name || '').trim();
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+      return res.status(400).json({ error: 'Escolha o dia do exercício.' });
+    }
+    if (!activeDaySet(habit).has(weekday)) {
+      return res.status(400).json({ error: 'Esse dia não está no treino.' });
+    }
+    if (!name || name.length > 80) {
+      return res.status(400).json({ error: 'Dê um nome ao exercício, com até 80 caracteres.' });
+    }
+    const sameDay = orderedExercises(habit, weekday);
+    if (sameDay.length >= 20) {
+      return res.status(400).json({ error: 'Limite de 20 exercícios neste dia.' });
+    }
+    habit.exercises.push({ weekday, name, position: sameDay.length });
+    await habit.save();
+    res.status(201).json(await buildPlan(habit, req.user._id, date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/:id/exercises/:exerciseId', async (req, res, next) => {
+  try {
+    const date = req.body?.date;
+    if (!isIsoDate(date)) return res.status(400).json({ error: 'Data inválida.' });
+    const habit = await findOwnedHabit(req.user._id, req.params.id);
+    if (!habit || (habit.kind || 'check') !== 'exercise') {
+      return res.status(404).json({ error: 'Treino não encontrado.' });
+    }
+    const item = habit.exercises.id(req.params.exerciseId);
+    if (!item) return res.status(404).json({ error: 'Exercício não encontrado.' });
+
+    const direction = req.body?.direction;
+    if (direction === 'up' || direction === 'down') {
+      const list = orderedExercises(habit, item.weekday);
+      const index = list.findIndex((entry) => entry._id.equals(item._id));
+      const swapWith = direction === 'up' ? index - 1 : index + 1;
+      if (swapWith >= 0 && swapWith < list.length) {
+        const reordered = [...list];
+        const [moved] = reordered.splice(index, 1);
+        reordered.splice(swapWith, 0, moved);
+        reordered.forEach((entry, position) => { entry.position = position; });
+      }
+    } else {
+      return res.status(400).json({ error: 'Não foi possível reordenar.' });
+    }
+
+    await habit.save();
+    res.json(await buildPlan(habit, req.user._id, date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/:id/exercises/:exerciseId', async (req, res, next) => {
+  try {
+    const date = req.query.date;
+    if (!isIsoDate(date)) return res.status(400).json({ error: 'Data inválida.' });
+    const habit = await findOwnedHabit(req.user._id, req.params.id);
+    if (!habit || (habit.kind || 'check') !== 'exercise') {
+      return res.status(404).json({ error: 'Treino não encontrado.' });
+    }
+    const item = habit.exercises.id(req.params.exerciseId);
+    if (!item) return res.status(404).json({ error: 'Exercício não encontrado.' });
+    const weekday = item.weekday;
+    item.deleteOne();
+    orderedExercises(habit, weekday).forEach((entry, position) => { entry.position = position; });
+    await habit.save();
+    res.json(await buildPlan(habit, req.user._id, date));
   } catch (error) {
     next(error);
   }
@@ -157,11 +282,11 @@ function readHabitFields(body) {
   }
 
   const kind = body?.kind === undefined || body?.kind === '' ? 'check' : body.kind;
-  if (kind !== 'check' && kind !== 'water') {
+  if (kind !== 'check' && kind !== 'water' && kind !== 'exercise') {
     return { error: 'Escolha o tipo do hábito.' };
   }
 
-  if (kind === 'check') return { value: { title, kind, goalMl: null } };
+  if (kind === 'check' || kind === 'exercise') return { value: { title, kind, goalMl: null } };
 
   const goalMl = parseGoalMl(body?.goalLiters);
   if (!goalMl) return { error: 'A meta precisa ficar entre 0,2 L e 10 L.' };
@@ -207,6 +332,9 @@ async function buildBoard(userId, today) {
     if (kind === 'water') {
       return waterHabit(habit, waterByHabit.get(id) || [], today, days);
     }
+    if (kind === 'exercise') {
+      return exerciseHabit(habit, checksByHabit.get(id) || [], today, days);
+    }
     const dates = (checksByHabit.get(id) || []).map((item) => item.date);
     const done = new Set(dates);
     return {
@@ -219,12 +347,85 @@ async function buildBoard(userId, today) {
     };
   });
 
+  const counted = items.filter((item) => item.countsToday !== false);
   return {
     date: today,
-    doneCount: items.filter((item) => item.doneToday).length,
-    total: items.length,
+    doneCount: counted.filter((item) => item.doneToday).length,
+    total: counted.length,
     habits: items,
   };
+}
+
+function exerciseHabit(habit, checkins, today, days) {
+  const dates = checkins.map((item) => item.date);
+  const done = new Set(dates);
+  const active = activeDaySet(habit);
+  const weekday = weekdayOf(today);
+  const restToday = !active.has(weekday);
+  const todayPlan = orderedExercises(habit, weekday).map((item) => item.name);
+  return {
+    id: habit._id.toString(),
+    title: habit.title,
+    kind: 'exercise',
+    restToday,
+    countsToday: !restToday,
+    todayPlan,
+    doneToday: !restToday && done.has(today),
+    streak: computeScheduledStreak(dates, today, [...active]),
+    week: days.map((date) => {
+      const trains = active.has(weekdayOf(date));
+      return { date, done: trains && done.has(date), rest: !trains };
+    }),
+  };
+}
+
+const TRAINING_DAYS = [
+  { weekday: 1, name: 'Segunda' },
+  { weekday: 2, name: 'Terça' },
+  { weekday: 3, name: 'Quarta' },
+  { weekday: 4, name: 'Quinta' },
+  { weekday: 5, name: 'Sexta' },
+  { weekday: 6, name: 'Sábado' },
+  { weekday: 0, name: 'Domingo' },
+];
+
+async function buildPlan(habit, userId, date) {
+  const active = activeDaySet(habit);
+  const weekday = weekdayOf(date);
+  const checkin = await CheckIn.findOne({ habitId: habit._id, userId, date }).select('_id').lean();
+  return {
+    id: habit._id.toString(),
+    title: habit.title,
+    date,
+    weekday,
+    restToday: !active.has(weekday),
+    doneToday: active.has(weekday) && Boolean(checkin),
+    activeDays: [...active],
+    days: TRAINING_DAYS.filter((day) => active.has(day.weekday)).map((day) => ({
+      weekday: day.weekday,
+      name: day.name,
+      today: day.weekday === weekday,
+      exercises: orderedExercises(habit, day.weekday).map((item) => ({
+        id: item._id.toString(),
+        name: item.name,
+      })),
+    })),
+  };
+}
+
+function activeDaySet(habit) {
+  return new Set((habit.activeDays || []).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6));
+}
+
+function normalizeDays(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))];
+}
+
+function orderedExercises(habit, weekday) {
+  return habit.exercises
+    .filter((item) => item.weekday === weekday)
+    .sort((a, b) => a.position - b.position || String(a._id).localeCompare(String(b._id)));
 }
 
 function waterHabit(habit, entries, today, days) {

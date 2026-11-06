@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { formatLiters, litersToInput } from '../format.js';
 
@@ -116,6 +117,8 @@ export function HabitCard({ habit, date, onChange }) {
           ) : null}
           <span className="vessel-glint" />
         </div>
+      ) : habit.kind === 'exercise' && habit.restToday ? (
+        <div className="check rest" role="img" aria-label="Dia de descanso" />
       ) : (
         <button
           className="check"
@@ -161,7 +164,11 @@ export function HabitCard({ habit, date, onChange }) {
         ) : (
           <>
             <div className="habit-line">
-              <h2>{habit.title}</h2>
+              <h2>
+                {habit.kind === 'exercise'
+                  ? <Link to={`/exercicios/${habit.id}`}>{habit.title}</Link>
+                  : habit.title}
+              </h2>
               <div className="habit-actions">
                 <button className="text" type="button" onClick={openEdit} disabled={saving}>Editar</button>
                 <button className="text" type="button" onClick={removeHabit} disabled={saving}>Remover</button>
@@ -180,11 +187,25 @@ export function HabitCard({ habit, date, onChange }) {
                 </div>
               </>
             ) : null}
+            {habit.kind === 'exercise' ? (
+              <>
+                <p className="streak">
+                  {habit.restToday
+                    ? 'Descanso hoje'
+                    : habit.todayPlan?.length
+                      ? habit.todayPlan.join(' · ')
+                      : 'Dia de treino, sem exercícios ainda'}
+                </p>
+                <Link className="open-training" to={`/exercicios/${habit.id}`}>Abrir treino</Link>
+              </>
+            ) : null}
             <p className="streak">
               {habit.streak > 0
                 ? `${habit.streak} ${habit.kind === 'water'
                   ? (habit.streak === 1 ? 'dia na meta' : 'dias na meta')
-                  : (habit.streak === 1 ? 'dia seguido' : 'dias seguidos')}`
+                  : habit.kind === 'exercise'
+                    ? (habit.streak === 1 ? 'treino seguido' : 'treinos seguidos')
+                    : (habit.streak === 1 ? 'dia seguido' : 'dias seguidos')}`
                 : 'Ainda sem sequência'}
             </p>
             {error ? <p className="alert" role="alert">{error}</p> : null}
@@ -269,7 +290,7 @@ function Week({ week }) {
         return (
           <li key={day.date} title={WEEKDAYS[index]}>
             <span>{WEEKDAY_LETTERS[index]}</span>
-            <i className={day.done ? 'on' : ''} />
+            <i className={day.rest ? 'rest' : day.done ? 'on' : ''} />
           </li>
         );
       })}
@@ -282,6 +303,7 @@ export function KindPicker({ kind, onChange }) {
     <div className="kinds" role="group" aria-label="Tipo de hábito">
       <button type="button" aria-pressed={kind === 'check'} onClick={() => onChange('check')}>Uma vez ao dia</button>
       <button type="button" aria-pressed={kind === 'water'} onClick={() => onChange('water')}>Água</button>
+      <button type="button" aria-pressed={kind === 'exercise'} onClick={() => onChange('exercise')}>Exercício</button>
     </div>
   );
 }

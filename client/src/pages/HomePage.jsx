@@ -120,6 +120,9 @@ export function HomePage() {
             />
           </label>
         ) : null}
+        {kind === 'exercise' ? (
+          <p className="hint">Os dias e os exercícios ficam na página do treino.</p>
+        ) : null}
         <button className="primary" type="submit" disabled={!canAdd}>
           {saving ? 'Adicionando…' : 'Adicionar'}
         </button>

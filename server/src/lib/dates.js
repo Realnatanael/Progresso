@@ -23,6 +23,39 @@ export function lastDays(today, count) {
   return days;
 }
 
+export function weekdayOf(iso) {
+  const [year, month, day] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
+export function computeScheduledStreak(dates, today, activeDays) {
+  const done = new Set(dates);
+  const active = new Set(activeDays);
+  if (active.size === 0) return 0;
+
+  let cursor = today;
+  if (!active.has(weekdayOf(cursor)) || !done.has(cursor)) {
+    cursor = previousActiveDay(cursor, active);
+    if (!cursor || !done.has(cursor)) return 0;
+  }
+
+  let streak = 0;
+  while (cursor && done.has(cursor)) {
+    streak += 1;
+    cursor = previousActiveDay(cursor, active);
+  }
+  return streak;
+}
+
+function previousActiveDay(iso, active) {
+  let cursor = shiftDate(iso, -1);
+  for (let step = 0; step < 14; step += 1) {
+    if (active.has(weekdayOf(cursor))) return cursor;
+    cursor = shiftDate(cursor, -1);
+  }
+  return null;
+}
+
 export function computeStreak(dates, today) {
   const done = new Set(dates);
   let cursor = done.has(today) ? today : shiftDate(today, -1);
