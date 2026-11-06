@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
-
-const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-const WEEKDAY_LETTERS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-
-function weekdayIndex(iso) {
-  const [year, month, day] = iso.split('-').map(Number);
-  return new Date(year, month - 1, day).getDay();
-}
+import { HabitCard, KindPicker } from '../components/HabitCard.jsx';
 
 function formatToday() {
   const label = new Intl.DateTimeFormat('pt-BR', {
@@ -24,10 +17,11 @@ export function HomePage() {
   const date = todayISO();
   const [board, setBoard] = useState(null);
   const [title, setTitle] = useState('');
+  const [kind, setKind] = useState('check');
+  const [goal, setGoal] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [pendingId, setPendingId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -53,9 +47,14 @@ export function HomePage() {
     setError('');
     setSaving(true);
     try {
-      const data = await api('/api/habits', { method: 'POST', body: { title: nextTitle, date } });
+      const data = await api('/api/habits', {
+        method: 'POST',
+        body: { title: nextTitle, date, kind, goalLiters: goal },
+      });
       setBoard(data);
       setTitle('');
+      setKind('check');
+      setGoal('');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -63,38 +62,11 @@ export function HomePage() {
     }
   }
 
-  async function toggleHabit(id) {
-    setError('');
-    setPendingId(id);
-    try {
-      const data = await api(`/api/habits/${id}/toggle`, { method: 'POST', body: { date } });
-      setBoard(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function removeHabit(habit) {
-    const confirmed = window.confirm(`Remover “${habit.title}”? O histórico desse hábito também sai.`);
-    if (!confirmed) return;
-    setError('');
-    setPendingId(habit.id);
-    try {
-      const data = await api(`/api/habits/${habit.id}?date=${date}`, { method: 'DELETE' });
-      setBoard(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
   const firstName = user.name.split(' ')[0];
   const doneCount = board?.doneCount ?? 0;
   const total = board?.total ?? 0;
   const dayClosed = total > 0 && doneCount === total;
+  const canAdd = title.trim() && (kind !== 'water' || goal.trim()) && !saving;
 
   return (
     <main className="app">
@@ -115,53 +87,18 @@ export function HomePage() {
       </section>
 
       {error ? <p className="alert" role="alert">{error}</p> : null}
-
       {loading ? <p className="screen-status">Carregando hábitos…</p> : null}
-
       {!loading && board?.habits.length === 0 ? (
         <p className="empty">Comece por um hábito pequeno, do tipo que cabe no dia.</p>
       ) : null}
 
       <ul className="habits">
         {board?.habits.map((habit) => (
-          <li key={habit.id} className={habit.doneToday ? 'habit done' : 'habit'}>
-            <button
-              className="check"
-              type="button"
-              aria-pressed={habit.doneToday}
-              aria-label={habit.doneToday ? `Desmarcar ${habit.title}` : `Marcar ${habit.title}`}
-              disabled={pendingId === habit.id}
-              onClick={() => toggleHabit(habit.id)}
-            >
-              <span />
-            </button>
-            <div className="habit-body">
-              <div className="habit-line">
-                <h2>{habit.title}</h2>
-                <button className="text" type="button" onClick={() => removeHabit(habit)} disabled={pendingId === habit.id}>
-                  Remover
-                </button>
-              </div>
-              <p className="streak">
-                {habit.streak > 0 ? `${habit.streak} ${habit.streak === 1 ? 'dia seguido' : 'dias seguidos'}` : 'Ainda sem sequência'}
-              </p>
-              <ol className="week">
-                {habit.week.map((day) => {
-                  const index = weekdayIndex(day.date);
-                  return (
-                    <li key={day.date} title={WEEKDAYS[index]}>
-                      <span>{WEEKDAY_LETTERS[index]}</span>
-                      <i className={day.done ? 'on' : ''} />
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-          </li>
+          <HabitCard key={habit.id} habit={habit} date={date} onChange={setBoard} />
         ))}
       </ul>
 
-      <form className="add" onSubmit={addHabit}>
+      <form className="composer" onSubmit={addHabit}>
         <label className="sr" htmlFor="new-habit">Novo hábito</label>
         <input
           id="new-habit"
@@ -170,8 +107,21 @@ export function HomePage() {
           placeholder="Novo hábito"
           onChange={(event) => setTitle(event.target.value)}
         />
-        <button className="primary" type="submit" disabled={saving || !title.trim()}>
-          {saving ? '…' : 'Adicionar'}
+        <KindPicker kind={kind} onChange={setKind} />
+        {kind === 'water' ? (
+          <label className="field" htmlFor="new-goal">
+            <span>Meta do dia, em litros</span>
+            <input
+              id="new-goal"
+              inputMode="decimal"
+              placeholder="2,5"
+              value={goal}
+              onChange={(event) => setGoal(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <button className="primary" type="submit" disabled={!canAdd}>
+          {saving ? 'Adicionando…' : 'Adicionar'}
         </button>
       </form>
     </main>
