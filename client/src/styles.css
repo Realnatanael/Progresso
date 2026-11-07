@@ -705,6 +705,45 @@ a { color: var(--gold); }
 
 .body-panel {
   margin-top: 8px;
+  display: grid;
+  gap: 12px;
+}
+
+.part-tests {
+  display: grid;
+  gap: 10px;
+}
+
+.part-test {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--raise);
+  border: 1px solid var(--line);
+}
+
+.part-test-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.part-test-head strong {
+  font-size: 0.92rem;
+}
+
+.part-test-head em {
+  font-style: normal;
+  color: var(--gold);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.part-test input[type="range"] {
+  width: 100%;
+  accent-color: var(--gold);
 }
 
 .body-stage {

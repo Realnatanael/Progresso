@@ -5,6 +5,7 @@ import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { BodyAvatar } from '../components/BodyAvatar.jsx';
 import { formatKg, formatNumber, genderLabel } from '../format.js';
+import { PART_RANGES, USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
 
 const DAY_PICKS = [
   { weekday: 1, short: 'Seg' },
@@ -25,6 +26,11 @@ export function BodyPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  /** Testes locais de circunferência (cm) → remodelam regiões do avatar. */
+  const [bicepsCm, setBicepsCm] = useState(USER_BASELINE.armCm);
+  const [shoulderCm, setShoulderCm] = useState(USER_BASELINE.shoulderCm);
+  const [forearmCm, setForearmCm] = useState(USER_BASELINE.forearmCm);
+  const [chestCm, setChestCm] = useState(USER_BASELINE.chestCm);
 
   useEffect(() => {
     let active = true;
@@ -124,6 +130,14 @@ export function BodyPage() {
   const profile = body?.profile;
   const hasProfile = Boolean(profile?.heightCm && profile?.age && profile?.gender);
 
+  const parts = partsFromMeasures({
+    armCm: bicepsCm,
+    shoulderCm,
+    forearmCm,
+    chestCm,
+    calfCm: USER_BASELINE.calfCm,
+  });
+
   return (
     <main className="app with-nav app-wide">
       <header className="top">
@@ -154,6 +168,8 @@ export function BodyPage() {
               gender={profile?.gender || 'male'}
               definition={body?.avatar?.definition ?? 0}
               volume={body?.avatar?.volume ?? 0.15}
+              parts={parts}
+              heightCm={profile?.heightCm || USER_BASELINE.heightCm}
               label={body?.avatar?.label}
             >
               <aside className="body-hud">
@@ -188,6 +204,72 @@ export function BodyPage() {
                 )}
               </aside>
             </BodyAvatar>
+
+            <div className="part-tests">
+              <label className="part-test">
+                <span className="part-test-head">
+                  <strong>Braço</strong>
+                  <em>{formatNumber(bicepsCm)} cm · {Math.round(parts.arms * 100)}%</em>
+                </span>
+                <input
+                  type="range"
+                  min={PART_RANGES.arms.lean}
+                  max={PART_RANGES.arms.goal}
+                  step={0.5}
+                  value={bicepsCm}
+                  onChange={(event) => setBicepsCm(Number(event.target.value))}
+                />
+                <span className="hint">Base {USER_BASELINE.armCm} → teto ~{PART_RANGES.arms.goal} cm</span>
+              </label>
+
+              <label className="part-test">
+                <span className="part-test-head">
+                  <strong>Ombro</strong>
+                  <em>{formatNumber(shoulderCm)} cm · {Math.round(parts.shoulders * 100)}%</em>
+                </span>
+                <input
+                  type="range"
+                  min={PART_RANGES.shoulders.lean}
+                  max={PART_RANGES.shoulders.goal}
+                  step={0.5}
+                  value={shoulderCm}
+                  onChange={(event) => setShoulderCm(Number(event.target.value))}
+                />
+                <span className="hint">Base ~{USER_BASELINE.shoulderCm} → teto ~{PART_RANGES.shoulders.goal} cm</span>
+              </label>
+
+              <label className="part-test">
+                <span className="part-test-head">
+                  <strong>Antebraço</strong>
+                  <em>{formatNumber(forearmCm)} cm · {Math.round(parts.forearms * 100)}%</em>
+                </span>
+                <input
+                  type="range"
+                  min={PART_RANGES.forearms.lean}
+                  max={PART_RANGES.forearms.goal}
+                  step={0.5}
+                  value={forearmCm}
+                  onChange={(event) => setForearmCm(Number(event.target.value))}
+                />
+                <span className="hint">Base {USER_BASELINE.forearmCm} → teto ~{PART_RANGES.forearms.goal} cm</span>
+              </label>
+
+              <label className="part-test">
+                <span className="part-test-head">
+                  <strong>Peito</strong>
+                  <em>{formatNumber(chestCm)} cm · {Math.round(parts.chest * 100)}%</em>
+                </span>
+                <input
+                  type="range"
+                  min={PART_RANGES.chest.lean}
+                  max={PART_RANGES.chest.goal}
+                  step={0.5}
+                  value={chestCm}
+                  onChange={(event) => setChestCm(Number(event.target.value))}
+                />
+                <span className="hint">Base {USER_BASELINE.chestCm} → teto ~{PART_RANGES.chest.goal} cm · placa frontal + fenda</span>
+              </label>
+            </div>
           </section>
 
           {plan ? (
