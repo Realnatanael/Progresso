@@ -5,6 +5,7 @@ import { CheckIn } from '../models/CheckIn.js';
 import { WaterEntry } from '../models/WaterEntry.js';
 import { requireAuth } from '../middleware/auth.js';
 import { computeScheduledStreak, computeStreak, isIsoDate, lastDays, weekdayOf } from '../lib/dates.js';
+import { activeDaySet, buildPlan, normalizeDays, orderedExercises } from '../lib/exercisePlan.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -377,55 +378,6 @@ function exerciseHabit(habit, checkins, today, days) {
       return { date, done: trains && done.has(date), rest: !trains };
     }),
   };
-}
-
-const TRAINING_DAYS = [
-  { weekday: 1, name: 'Segunda' },
-  { weekday: 2, name: 'Terça' },
-  { weekday: 3, name: 'Quarta' },
-  { weekday: 4, name: 'Quinta' },
-  { weekday: 5, name: 'Sexta' },
-  { weekday: 6, name: 'Sábado' },
-  { weekday: 0, name: 'Domingo' },
-];
-
-async function buildPlan(habit, userId, date) {
-  const active = activeDaySet(habit);
-  const weekday = weekdayOf(date);
-  const checkin = await CheckIn.findOne({ habitId: habit._id, userId, date }).select('_id').lean();
-  return {
-    id: habit._id.toString(),
-    title: habit.title,
-    date,
-    weekday,
-    restToday: !active.has(weekday),
-    doneToday: active.has(weekday) && Boolean(checkin),
-    activeDays: [...active],
-    days: TRAINING_DAYS.filter((day) => active.has(day.weekday)).map((day) => ({
-      weekday: day.weekday,
-      name: day.name,
-      today: day.weekday === weekday,
-      exercises: orderedExercises(habit, day.weekday).map((item) => ({
-        id: item._id.toString(),
-        name: item.name,
-      })),
-    })),
-  };
-}
-
-function activeDaySet(habit) {
-  return new Set((habit.activeDays || []).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6));
-}
-
-function normalizeDays(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6))];
-}
-
-function orderedExercises(habit, weekday) {
-  return habit.exercises
-    .filter((item) => item.weekday === weekday)
-    .sort((a, b) => a.position - b.position || String(a._id).localeCompare(String(b._id)));
 }
 
 function waterHabit(habit, entries, today, days) {

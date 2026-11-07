@@ -166,7 +166,7 @@ export function HabitCard({ habit, date, onChange }) {
             <div className="habit-line">
               <h2>
                 {habit.kind === 'exercise'
-                  ? <Link to={`/exercicios/${habit.id}`}>{habit.title}</Link>
+                  ? <Link to="/corpo">{habit.title}</Link>
                   : habit.title}
               </h2>
               <div className="habit-actions">
@@ -196,7 +196,7 @@ export function HabitCard({ habit, date, onChange }) {
                       ? habit.todayPlan.join(' · ')
                       : 'Dia de treino, sem exercícios ainda'}
                 </p>
-                <Link className="open-training" to={`/exercicios/${habit.id}`}>Abrir treino</Link>
+                <Link className="open-training" to="/corpo">Abrir Corpo</Link>
               </>
             ) : null}
             <p className="streak">

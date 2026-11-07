@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { HabitCard, KindPicker } from '../components/HabitCard.jsx';
+import { AppNav } from '../components/AppNav.jsx';
 
 function formatToday() {
   const label = new Intl.DateTimeFormat('pt-BR', {
@@ -69,7 +70,7 @@ export function HomePage() {
   const canAdd = title.trim() && (kind !== 'water' || goal.trim()) && !saving;
 
   return (
-    <main className="app">
+    <main className="app with-nav">
       <header className="top">
         <p className="mark">Progresso</p>
         <button className="ghost" type="button" onClick={() => logout()}>Sair</button>
@@ -121,12 +122,13 @@ export function HomePage() {
           </label>
         ) : null}
         {kind === 'exercise' ? (
-          <p className="hint">Os dias e os exercícios ficam na página do treino.</p>
+          <p className="hint">Os dias e os exercícios ficam em Corpo.</p>
         ) : null}
         <button className="primary" type="submit" disabled={!canAdd}>
           {saving ? 'Adicionando…' : 'Adicionar'}
         </button>
       </form>
+      <AppNav />
     </main>
   );
 }

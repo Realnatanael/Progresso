@@ -7,6 +7,7 @@ import cookieParser from 'cookie-parser';
 import { connectDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import habitRoutes from './routes/habits.js';
+import bodyRoutes from './routes/body.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -36,6 +37,7 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/habits', habitRoutes);
+app.use('/api/body', bodyRoutes);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });
