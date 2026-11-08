@@ -71,6 +71,10 @@ export function NinjaPage() {
     return run(() => api('/api/ninja/unlock', { method: 'POST', body: { catalogId } }));
   }
 
+  function rollAffinity() {
+    return run(() => api('/api/ninja/affinity-roll', { method: 'POST', body: {} }));
+  }
+
   async function onPickSelfie(event) {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -102,7 +106,24 @@ export function NinjaPage() {
     [catalog],
   );
   const secondNatures = useMemo(
-    () => catalog.filter((item) => item.kind === 'nature' && !item.firstNatureOnly && !item.owned),
+    () => catalog.filter((item) => (
+      item.kind === 'nature'
+      && item.natureGroup === 'basic'
+      && !item.firstNatureOnly
+      && !item.owned
+    )),
+    [catalog],
+  );
+  const advancedNatures = useMemo(
+    () => catalog.filter((item) => (
+      item.kind === 'nature'
+      && (item.natureGroup === 'spirit' || item.natureGroup === 'special')
+      && !item.owned
+    )),
+    [catalog],
+  );
+  const fusions = useMemo(
+    () => catalog.filter((item) => item.kind === 'kekkei' && item.fusion && !item.owned),
     [catalog],
   );
   const owned = useMemo(
@@ -110,7 +131,11 @@ export function NinjaPage() {
     [catalog],
   );
   const learnable = useMemo(
-    () => catalog.filter((item) => !item.owned && item.kind !== 'nature'),
+    () => catalog.filter((item) => (
+      !item.owned
+      && item.kind !== 'nature'
+      && !(item.kind === 'kekkei' && item.fusion)
+    )),
     [catalog],
   );
   const available = useMemo(
@@ -228,7 +253,8 @@ export function NinjaPage() {
             <section className="ninja-card ninja-nature-pick">
               <h2>Escolha seu primeiro elemento</h2>
               <p className="hint">
-                Grátis na academia. Depois disso, jutsus daquela natureza ficam disponíveis.
+                Os 5 básicos são grátis. Ou junte {ninja.affinityRollCost} pts e invoque uma
+                afinidade rara (espiritual, kekkei ou especial).
               </p>
               <div className="ninja-nature-grid">
                 {firstNatures.map((item) => (
@@ -244,14 +270,31 @@ export function NinjaPage() {
                   </button>
                 ))}
               </div>
+              <button
+                type="button"
+                className="primary ninja-roll-btn"
+                disabled={saving || !ninja.canAffinityRoll}
+                onClick={() => rollAffinity()}
+              >
+                {ninja.canAffinityRoll
+                  ? `Invocar afinidade rara (${ninja.affinityRollCost} pts)`
+                  : `Invocar rara — falta pts (${ninja.unlockPoints}/${ninja.affinityRollCost})`}
+              </button>
+              <p className="hint">
+                Na sorte podem sair Yin/Yang, fusões (gelo, madeira, lava…) ou especiais
+                (cristal, trevas…). Se sair fusão, os elementos-base vêm junto.
+              </p>
             </section>
-          ) : ninja.natureLabels?.length ? (
+          ) : (
             <p className="ninja-natures">
-              {ninja.natureLabels.map((label) => (
+              {(ninja.natureLabels || []).map((label) => (
                 <span key={label} className="ninja-nature-chip">{label}</span>
               ))}
+              {(ninja.kekkeiLabels || []).map((label) => (
+                <span key={label} className="ninja-nature-chip ninja-nature-chip-fusion">{label}</span>
+              ))}
             </p>
-          ) : null}
+          )}
 
           {pending ? (
             <section className="ninja-card">
@@ -296,10 +339,52 @@ export function NinjaPage() {
 
           {!ninja.needsFirstNature && secondNatures.length > 0 ? (
             <section className="ninja-card">
-              <h2>Segundo elemento</h2>
-              <p className="hint">Caro e exige Genin + stats. Desbloqueia outra natureza.</p>
+              <h2>Elemento secundário</h2>
+              <p className="hint">
+                10 pts · Genin. Escolha outro dos 5 básicos pra depois liberar fusões.
+              </p>
               <ul className="ninja-list">
                 {secondNatures.map((item) => (
+                  <CatalogRow
+                    key={item.id}
+                    item={item}
+                    saving={saving}
+                    onUnlock={unlock}
+                    cta="Desbloquear"
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {!ninja.needsFirstNature && fusions.length > 0 ? (
+            <section className="ninja-card">
+              <h2>Fusões (Kekkei)</h2>
+              <p className="hint">
+                Exigem os elementos-base. 2 elementos ≈ 16–20 pts · Pó (3) custa bem mais.
+              </p>
+              <ul className="ninja-list">
+                {fusions.map((item) => (
+                  <CatalogRow
+                    key={item.id}
+                    item={item}
+                    saving={saving}
+                    onUnlock={unlock}
+                    cta="Fundir"
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {!ninja.needsFirstNature && advancedNatures.length > 0 ? (
+            <section className="ninja-card">
+              <h2>Espirituais e especiais</h2>
+              <p className="hint">
+                Yin / Yang / Yin-Yang e marcadores raros (cristal, trevas, aço…).
+              </p>
+              <ul className="ninja-list">
+                {advancedNatures.map((item) => (
                   <CatalogRow
                     key={item.id}
                     item={item}

@@ -9,6 +9,7 @@ import {
   ensureNinja,
   pickStat,
   publicNinja,
+  rollFirstAffinity,
   syncDayAwards,
   tryUnlock,
 } from '../lib/ninjaProgress.js';
@@ -105,6 +106,23 @@ router.post('/unlock', async (req, res, next) => {
     user.markModified('ninja');
     await user.save();
     res.json(buildPayload(user, [{ type: 'unlock', catalogId }]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/affinity-roll', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const n = ensureNinja(user);
+    const result = rollFirstAffinity(n);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    user.markModified('ninja');
+    await user.save();
+    res.json(buildPayload(user, [{ type: 'affinity-roll', result: result.result }]));
   } catch (error) {
     next(error);
   }
