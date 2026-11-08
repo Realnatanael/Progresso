@@ -195,8 +195,8 @@ export function NinjaPage() {
             <p className="date">Ninja</p>
             <h1>
               {ninja.clanName
-                ? `${ninja.displayName || 'Ninja'} · Clã ${ninja.clanName}`
-                : 'Seu caminho ninja'}
+                ? `${firstName(ninja.displayName)} · Clã ${ninja.clanName}`
+                : firstName(ninja.displayName)}
             </h1>
             <p className="summary">
               {ninja.rankLabel}
@@ -448,6 +448,11 @@ function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {
       </button>
     </li>
   );
+}
+
+function firstName(fullName) {
+  const part = String(fullName || '').trim().split(/\s+/)[0];
+  return part || 'Ninja';
 }
 
 function StatBar({ label, value, max, tone }) {

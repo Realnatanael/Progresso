@@ -1131,7 +1131,7 @@ a { color: var(--gold); }
   border-radius: 22px;
   background:
     linear-gradient(180deg, rgba(12, 18, 24, 0.18) 0%, transparent 38%, rgba(8, 10, 14, 0.2) 100%),
-    url("/images/konoha-gate-stage.jpg") center 62% / cover no-repeat;
+    url("/images/konoha-gate-wall.jpg") center 58% / cover no-repeat;
   border: 1px solid var(--line);
   display: grid;
   place-items: end center;

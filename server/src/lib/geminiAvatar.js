@@ -1,4 +1,5 @@
 import { buildNinjaAvatarPrompt } from './ninjaAvatarPrompt.js';
+import { cutAvatarBackground } from './cutAvatarBackground.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash-image';
 
@@ -91,10 +92,17 @@ export async function generateNinjaAvatarImage({
     throw err;
   }
 
-  return {
-    mime: imagePart.inlineData.mimeType || 'image/png',
-    buffer: Buffer.from(imagePart.inlineData.data, 'base64'),
-  };
+  const rawBuffer = Buffer.from(imagePart.inlineData.data, 'base64');
+  try {
+    const cut = await cutAvatarBackground(rawBuffer);
+    return { mime: 'image/png', buffer: cut };
+  } catch (error) {
+    console.error('Falha ao recortar fundo do avatar:', error);
+    return {
+      mime: imagePart.inlineData.mimeType || 'image/png',
+      buffer: rawBuffer,
+    };
+  }
 }
 
 function friendlyGeminiError(message, status) {
