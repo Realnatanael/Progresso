@@ -1130,8 +1130,8 @@ a { color: var(--gold); }
   min-height: 340px;
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(12, 18, 24, 0.18) 0%, transparent 38%, rgba(8, 10, 14, 0.2) 100%),
-    url("/images/konoha-iconic-gate.jpg") center 55% / cover no-repeat;
+    linear-gradient(180deg, rgba(20, 28, 36, 0.08) 0%, transparent 42%, rgba(12, 16, 20, 0.12) 100%),
+    url("/images/konoha-aun-gates.jpg") center 48% / cover no-repeat;
   border: 1px solid var(--line);
   display: grid;
   place-items: end center;
