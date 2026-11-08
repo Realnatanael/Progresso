@@ -1,4 +1,6 @@
 import {
+  AFFINITY_ROLL_COST,
+  AFFINITY_ROLL_TABLE,
   CHAKRA_MAX,
   NATURES,
   NINJA_CATALOG,
@@ -50,17 +52,29 @@ export function publicNinja(user) {
     statMax: STAT_MAX,
     unlockPoints: n.unlockPoints || 0,
     natures: [...(n.natures || [])],
-    natureLabels: (n.natures || []).map((id) => NATURES.find((x) => x.id === id)?.label || id),
+    natureLabels: (n.natures || []).map((id) => formatNatureLabel(id)),
     needsFirstNature: (n.natures || []).length === 0,
     learnedJutsuIds: [...(n.learnedJutsuIds || [])],
     unlockedKekkeiIds: [...(n.unlockedKekkeiIds || [])],
     unlockedBijuuIds: [...(n.unlockedBijuuIds || [])],
+    kekkeiLabels: (n.unlockedKekkeiIds || [])
+      .map((id) => catalogById(id)?.name)
+      .filter(Boolean),
     pendingStatPick: n.pendingStatPick || null,
     nextRank: nextRankInfo(n),
     avatarReady: Boolean(n.avatarReady),
     avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
     avatarUpdatedAt: n.avatarUpdatedAt || null,
+    affinityRollCost: AFFINITY_ROLL_COST,
+    canAffinityRoll: (n.natures || []).length === 0
+      && (n.unlockPoints || 0) >= AFFINITY_ROLL_COST,
   };
+}
+
+function formatNatureLabel(id) {
+  const nat = NATURES.find((x) => x.id === id);
+  if (!nat) return id;
+  return `${nat.label} (${nat.release})`;
 }
 
 function rankLabelOf(rank) {
@@ -274,6 +288,73 @@ export function tryUnlock(n, catalogId) {
 
   applyRankUps(n);
   return { ok: true, item };
+}
+
+/** Sorteia afinidade rara no lugar do 1º elemento básico. */
+export function rollFirstAffinity(n) {
+  if ((n.natures || []).length > 0) {
+    return { error: 'Você já escolheu sua afinidade.' };
+  }
+  if ((n.unlockPoints || 0) < AFFINITY_ROLL_COST) {
+    return { error: `Precisa de ${AFFINITY_ROLL_COST} pts para invocar afinidade rara.` };
+  }
+
+  const pick = weightedPick(AFFINITY_ROLL_TABLE);
+  if (!pick) return { error: 'Tabela de sorte vazia.' };
+
+  n.unlockPoints = (n.unlockPoints || 0) - AFFINITY_ROLL_COST;
+
+  if (pick.kind === 'nature') {
+    if (!n.natures) n.natures = [];
+    if (!n.natures.includes(pick.natureId)) n.natures.push(pick.natureId);
+    n.needsFirstNature = false;
+    applyRankUps(n);
+    return {
+      ok: true,
+      result: {
+        kind: 'nature',
+        natureId: pick.natureId,
+        label: formatNatureLabel(pick.natureId),
+      },
+    };
+  }
+
+  const item = catalogById(pick.id);
+  if (!item) return { error: 'Fusão sorteada inválida.' };
+
+  if (!n.natures) n.natures = [];
+  const grantedNatures = [];
+  for (const nat of item.requiresNatures || []) {
+    if (!n.natures.includes(nat)) {
+      n.natures.push(nat);
+      grantedNatures.push(nat);
+    }
+  }
+  if (!n.unlockedKekkeiIds) n.unlockedKekkeiIds = [];
+  if (!n.unlockedKekkeiIds.includes(item.id)) n.unlockedKekkeiIds.push(item.id);
+  n.needsFirstNature = false;
+  applyRankUps(n);
+
+  return {
+    ok: true,
+    result: {
+      kind: 'kekkei',
+      id: item.id,
+      name: item.name,
+      grantedNatures: grantedNatures.map(formatNatureLabel),
+    },
+  };
+}
+
+function weightedPick(table) {
+  const total = table.reduce((sum, row) => sum + (row.weight || 0), 0);
+  if (total <= 0) return null;
+  let ticket = Math.random() * total;
+  for (const row of table) {
+    ticket -= row.weight || 0;
+    if (ticket <= 0) return row;
+  }
+  return table[table.length - 1];
 }
 
 export function catalogForUser(n) {

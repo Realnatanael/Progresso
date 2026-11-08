@@ -1320,6 +1320,16 @@ a { color: var(--gold); }
   font-size: 0.85rem;
 }
 
+.ninja-nature-chip-fusion {
+  border-color: color-mix(in srgb, var(--line) 40%, var(--sage) 60%);
+  background: color-mix(in srgb, var(--raise) 75%, var(--sage) 25%);
+}
+
+.ninja-roll-btn {
+  width: 100%;
+  margin-top: 14px;
+}
+
 .ninja-nature-pick {
   border-color: color-mix(in srgb, var(--line) 50%, #4a8fe8 50%);
 }
