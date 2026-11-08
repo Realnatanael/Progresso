@@ -24,8 +24,6 @@ export function NinjaPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [clanDraft, setClanDraft] = useState('');
-  const [editingClan, setEditingClan] = useState(false);
   const [filter, setFilter] = useState('available');
 
   useEffect(() => {
@@ -34,7 +32,6 @@ export function NinjaPage() {
       .then((payload) => {
         if (!active) return;
         setData(payload);
-        setClanDraft(payload.ninja?.clanName || '');
       })
       .catch((err) => {
         if (active) setError(err.message);
@@ -53,7 +50,6 @@ export function NinjaPage() {
     try {
       const payload = await action();
       setData(payload);
-      if (payload?.ninja?.clanName) setClanDraft(payload.ninja.clanName);
       return payload;
     } catch (err) {
       setError(err.message);
@@ -69,20 +65,6 @@ export function NinjaPage() {
 
   function unlock(catalogId) {
     return run(() => api('/api/ninja/unlock', { method: 'POST', body: { catalogId } }));
-  }
-
-  function saveClan(event) {
-    event.preventDefault();
-    const clanName = clanDraft.trim();
-    if (clanName.length < 2) {
-      setError('O sobrenome precisa ter pelo menos 2 caracteres.');
-      return undefined;
-    }
-    return run(async () => {
-      const payload = await api('/api/ninja/clan', { method: 'PATCH', body: { clanName } });
-      setEditingClan(false);
-      return payload;
-    });
   }
 
   const ninja = data?.ninja;
@@ -160,36 +142,10 @@ export function NinjaPage() {
             </div>
           </section>
 
-          {editingClan ? (
-            <form className="ninja-clan" onSubmit={saveClan}>
-              <label className="field" htmlFor="clan-name">
-                <span>Sobrenome / clã</span>
-                <input
-                  id="clan-name"
-                  maxLength={40}
-                  placeholder="Extraído do seu nome; pode ajustar"
-                  value={clanDraft}
-                  onChange={(event) => setClanDraft(event.target.value)}
-                />
-              </label>
-              <div className="ninja-clan-actions">
-                <button className="primary" type="submit" disabled={saving || clanDraft.trim().length < 2}>
-                  Salvar
-                </button>
-                <button className="ghost" type="button" onClick={() => setEditingClan(false)}>
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          ) : (
-            <p className="hint">
-              Clã {ninja.clanName || '—'}
-              {' · '}
-              <button className="text" type="button" onClick={() => setEditingClan(true)}>
-                Ajustar sobrenome
-              </button>
-            </p>
-          )}
+          <p className="hint">
+            Clã {ninja.clanName || '—'}
+            {' · definido no cadastro (sobrenome)'}
+          </p>
 
           {ninja.needsFirstNature ? (
             <section className="ninja-card ninja-nature-pick">

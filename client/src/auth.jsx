@@ -41,10 +41,10 @@ export function AuthProvider({ children }) {
         });
         return data.user;
       },
-      async register(name, email, password) {
+      async register(payload) {
         const data = await api('/api/auth/register', {
           method: 'POST',
-          body: { name, email, password },
+          body: payload,
         });
         authGen.current += 1;
         flushSync(() => {

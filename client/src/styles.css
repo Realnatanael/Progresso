@@ -80,6 +80,17 @@ a { color: var(--gold); }
 
 .form, .add { display: grid; gap: 14px; }
 
+.form-row {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 520px) {
+  .form-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .field { display: grid; gap: 6px; }
 
 .field span, .habit-line button, .week span {
@@ -87,7 +98,12 @@ a { color: var(--gold); }
   color: var(--faint);
 }
 
-.field input, .composer input, .edit input, .sip-form input, .exercise-add input {
+.field input,
+.field select,
+.composer input,
+.edit input,
+.sip-form input,
+.exercise-add input {
   width: 100%;
   border: 1px solid var(--line);
   background: #1a1713;
@@ -96,7 +112,12 @@ a { color: var(--gold); }
   outline: none;
 }
 
-.field input:focus, .composer input:focus, .edit input:focus, .sip-form input:focus, .exercise-add input:focus {
+.field input:focus,
+.field select:focus,
+.composer input:focus,
+.edit input:focus,
+.sip-form input:focus,
+.exercise-add input:focus {
   border-color: var(--gold);
 }
 
