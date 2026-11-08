@@ -1785,26 +1785,120 @@ a { color: var(--gold); }
 }
 
 .story-progress-label {
-  margin: 6px 0 10px;
+  margin: 6px 0 0;
   font-size: 0.82rem;
   color: var(--muted);
 }
 
-.ninja-story .story-goals {
-  list-style: none;
-  margin: 0;
-  padding: 10px 12px;
+.ninja-vaults {
+  margin-top: 14px;
   display: grid;
-  gap: 6px;
-  font-size: 0.88rem;
-  color: var(--muted);
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--gold) 40%, var(--line));
-  background: color-mix(in srgb, var(--gold) 10%, var(--raise));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.story-goals .done {
-  color: #4caf6a;
+.ninja-vault {
+  aspect-ratio: 1;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 16px 10px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--raise);
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.ninja-vault:hover:not(:disabled),
+.ninja-vault:focus-visible:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: color-mix(in srgb, var(--gold) 10%, var(--raise));
+  outline: none;
+}
+
+.ninja-vault:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ninja-vault-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.35));
+}
+
+.ninja-vault strong {
+  font-size: 0.98rem;
+}
+
+.ninja-vault em {
+  font-style: normal;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.ninja-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  align-items: end;
+}
+
+.ninja-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(4, 6, 10, 0.72);
+  cursor: pointer;
+}
+
+.ninja-sheet-panel {
+  position: relative;
+  z-index: 1;
+  max-height: min(92vh, 920px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-radius: 22px 22px 0 0;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: var(--raise);
+  box-shadow: 0 -18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.ninja-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ninja-sheet-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.ninja-sheet-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ninja-sheet-body {
+  overflow: auto;
+  padding: 12px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
 }
 
 .abilities-toggle {
@@ -1914,13 +2008,27 @@ a { color: var(--gold); }
   .ninja-list .primary { width: auto; }
 
   .jutsu-detail .primary { width: auto; justify-self: start; }
+
+  .ninja-sheet {
+    align-items: center;
+    justify-items: center;
+    padding: 24px;
+  }
+
+  .ninja-sheet-panel {
+    width: min(720px, 100%);
+    max-height: min(88vh, 860px);
+    border-radius: 22px;
+    border-bottom: 1px solid var(--line);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .meter span,
   .glasses li,
   .jutsu-tile,
-  .nature-seal {
+  .nature-seal,
+  .ninja-vault {
     animation: none;
     transition: none;
   }
