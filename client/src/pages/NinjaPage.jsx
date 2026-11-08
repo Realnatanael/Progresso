@@ -4,7 +4,12 @@ import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { encodeSelfie } from '../lib/photoEncode.js';
-import { DESTINY_SEAL, sealForNature } from '../natures.js';
+import {
+  DESTINY_SEAL,
+  emojiForCategory,
+  sealForNature,
+  visualForJutsu,
+} from '../natures.js';
 
 const STATS = [
   { id: 'ninjutsu', label: 'Ninjutsu' },
@@ -43,6 +48,20 @@ const NATURE_SHORT = {
   speed: 'Jinton',
 };
 
+const TIER_ORDER = ['E', 'D', 'C', 'B', 'A', 'S'];
+
+const CATEGORY_LABEL = {
+  ninjutsu: 'Ninjutsu',
+  genjutsu: 'Genjutsu',
+  taijutsu: 'Taijutsu',
+  bukijutsu: 'Bukijutsu',
+  fuuinjutsu: 'Fūinjutsu',
+  iryo: 'Iryō',
+  sensor: 'Sensor',
+  senjutsu: 'Senjutsu',
+  dojutsu: 'Dōjutsu',
+};
+
 export function NinjaPage() {
   const { logout } = useAuth();
   const date = todayISO();
@@ -51,6 +70,10 @@ export function NinjaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('available');
+  const [tierFilter, setTierFilter] = useState('all');
+  const [natureFilter, setNatureFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [selectedJutsuId, setSelectedJutsuId] = useState(null);
   const [abilityOpen, setAbilityOpen] = useState(false);
   const [abilityTab, setAbilityTab] = useState('elemento');
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
@@ -189,9 +212,53 @@ export function NinjaPage() {
     () => learnable.filter((item) => item.locked),
     [learnable],
   );
-  const listToShow = filter === 'locked' ? locked : filter === 'all' ? learnable : available;
+
+  const statusPool = filter === 'locked' ? locked : filter === 'all' ? learnable : available;
+
+  const natureOptions = useMemo(() => {
+    const ids = new Set();
+    let hasUniversal = false;
+    for (const item of learnable) {
+      const natures = item.requiresNatures || [];
+      if (natures.length === 0) hasUniversal = true;
+      natures.forEach((id) => ids.add(id));
+    }
+    const sorted = [...ids].sort((a, b) => (
+      (NATURE_SHORT[a] || a).localeCompare(NATURE_SHORT[b] || b, 'pt')
+    ));
+    return { hasUniversal, sorted };
+  }, [learnable]);
+
+  const categoryOptions = useMemo(() => {
+    const ids = new Set(learnable.map((item) => item.category).filter(Boolean));
+    return [...ids].sort((a, b) => (
+      (CATEGORY_LABEL[a] || a).localeCompare(CATEGORY_LABEL[b] || b, 'pt')
+    ));
+  }, [learnable]);
+
+  const listToShow = useMemo(() => {
+    return statusPool.filter((item) => {
+      if (tierFilter !== 'all' && item.tier !== tierFilter) return false;
+      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+      if (natureFilter === 'all') return true;
+      const natures = item.requiresNatures || [];
+      if (natureFilter === 'universal') return natures.length === 0;
+      return natures.includes(natureFilter);
+    });
+  }, [statusPool, tierFilter, categoryFilter, natureFilter]);
+
+  useEffect(() => {
+    if (!selectedJutsuId) return;
+    if (!listToShow.some((item) => item.id === selectedJutsuId)) {
+      setSelectedJutsuId(null);
+    }
+  }, [listToShow, selectedJutsuId]);
+
+  const selectedJutsu = listToShow.find((item) => item.id === selectedJutsuId) || null;
   const story = ninja?.story;
   const currentChapter = story?.chapters?.[story.currentIndex];
+  const chapterCount = story?.chapters?.length || 0;
+  const chapterNumber = story ? (story.currentIndex || 0) + 1 : 0;
 
   return (
     <main className="app with-nav app-wide">
@@ -394,48 +461,26 @@ export function NinjaPage() {
             </section>
           ) : null}
 
-          {story ? (
+          {story && currentChapter ? (
             <section className="ninja-card ninja-story">
               <p className="nature-pick-kicker">Modo História</p>
-              <h2>{currentChapter?.title || 'Sua jornada'}</h2>
-              <p className="hint">{currentChapter?.blurb}</p>
+              <h2>{currentChapter.title}</h2>
+              <p className="hint">{currentChapter.blurb}</p>
               <div className="story-progress" aria-hidden="true">
                 <span style={{ width: `${story.percent || 0}%` }} />
               </div>
-              <p className="story-progress-label">{story.percent || 0}% da jornada</p>
-              <ol className="story-roadmap">
-                {(story.chapters || []).map((chapter, index) => {
-                  const isCurrent = chapter.id === story.currentId;
-                  return (
-                    <li
-                      key={chapter.id}
-                      className={[
-                        chapter.complete ? 'is-done' : '',
-                        isCurrent ? 'is-current' : '',
-                        !chapter.complete && !isCurrent ? 'is-locked' : '',
-                      ].filter(Boolean).join(' ')}
-                    >
-                      <span className="story-step-index">{index + 1}</span>
-                      <div>
-                        <strong>{chapter.title}</strong>
-                        {isCurrent ? (
-                          <ul className="story-goals">
-                            {(chapter.goals || []).map((goal) => (
-                              <li key={goal.id} className={goal.done ? 'done' : ''}>
-                                {goal.done ? '✓' : '○'} {goal.label}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span className="hint">
-                            {chapter.complete ? 'Concluído' : 'Ainda fechado'}
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+              <p className="story-progress-label">
+                Capítulo {chapterNumber}/{chapterCount}
+                {' · '}
+                {story.percent || 0}%
+              </p>
+              <ul className="story-goals">
+                {(currentChapter.goals || []).map((goal) => (
+                  <li key={goal.id} className={goal.done ? 'done' : ''}>
+                    {goal.done ? '✓' : '○'} {goal.label}
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : null}
 
@@ -448,50 +493,142 @@ export function NinjaPage() {
               <p className="hint">Escolha a natureza acima; jutsus elementais só da sua afinidade.</p>
             ) : (
               <>
-                <p className="hint">
-                  Ranks E→S. Elementais exigem a natureza (Raiton não aprende Katon).
-                  Universais (clone, taijutsu, cura…) liberam pra todos.
-                </p>
-                <div className="ninja-filters">
-                  <button
-                    type="button"
-                    className={filter === 'available' ? 'primary' : 'ghost'}
-                    onClick={() => setFilter('available')}
-                  >
-                    Disponíveis ({available.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={filter === 'locked' ? 'primary' : 'ghost'}
-                    onClick={() => setFilter('locked')}
-                  >
-                    Bloqueados ({locked.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={filter === 'all' ? 'primary' : 'ghost'}
-                    onClick={() => setFilter('all')}
-                  >
-                    Todos ({learnable.length})
-                  </button>
+                <div className="jutsu-filter-block" role="group" aria-label="Disponibilidade">
+                  <div className="ninja-filters">
+                    <button
+                      type="button"
+                      className={filter === 'available' ? 'primary' : 'ghost'}
+                      onClick={() => setFilter('available')}
+                    >
+                      Disponíveis ({available.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={filter === 'locked' ? 'primary' : 'ghost'}
+                      onClick={() => setFilter('locked')}
+                    >
+                      Bloqueados ({locked.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={filter === 'all' ? 'primary' : 'ghost'}
+                      onClick={() => setFilter('all')}
+                    >
+                      Todos ({learnable.length})
+                    </button>
+                  </div>
                 </div>
+
+                <div className="jutsu-filter-block">
+                  <p className="jutsu-filter-label">Ranking</p>
+                  <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Ranking">
+                    <button
+                      type="button"
+                      className={tierFilter === 'all' ? 'primary' : 'ghost'}
+                      onClick={() => setTierFilter('all')}
+                    >
+                      Todos
+                    </button>
+                    {TIER_ORDER.map((tier) => (
+                      <button
+                        key={tier}
+                        type="button"
+                        className={tierFilter === tier ? 'primary' : 'ghost'}
+                        onClick={() => setTierFilter(tier)}
+                      >
+                        <span className={`jutsu-tier tier-${tier}`}>{tier}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="jutsu-filter-block">
+                  <p className="jutsu-filter-label">Elemento</p>
+                  <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Elemento">
+                    <button
+                      type="button"
+                      className={natureFilter === 'all' ? 'primary' : 'ghost'}
+                      onClick={() => setNatureFilter('all')}
+                    >
+                      Todos
+                    </button>
+                    {natureOptions.hasUniversal ? (
+                      <button
+                        type="button"
+                        className={natureFilter === 'universal' ? 'primary' : 'ghost'}
+                        onClick={() => setNatureFilter('universal')}
+                      >
+                        Universal
+                      </button>
+                    ) : null}
+                    {natureOptions.sorted.map((natureId) => (
+                      <button
+                        key={natureId}
+                        type="button"
+                        className={natureFilter === natureId ? 'primary' : 'ghost'}
+                        onClick={() => setNatureFilter(natureId)}
+                      >
+                        {NATURE_SHORT[natureId] || natureId}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="jutsu-filter-block">
+                  <p className="jutsu-filter-label">Tipo</p>
+                  <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Tipo">
+                    <button
+                      type="button"
+                      className={categoryFilter === 'all' ? 'primary' : 'ghost'}
+                      onClick={() => setCategoryFilter('all')}
+                    >
+                      Todos
+                    </button>
+                    {categoryOptions.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        className={categoryFilter === category ? 'primary' : 'ghost'}
+                        onClick={() => setCategoryFilter(category)}
+                      >
+                        <span aria-hidden="true">{emojiForCategory(category)} </span>
+                        {CATEGORY_LABEL[category] || category}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {listToShow.length === 0 ? (
                   <p className="hint">
                     {filter === 'available'
-                      ? 'Nada liberado agora — feche o dia em Hoje para ganhar pts, ou veja Bloqueados.'
+                      ? 'Nada liberado com esses filtros — feche o dia em Hoje ou ajuste ranking/elemento.'
                       : 'Lista vazia neste filtro.'}
                   </p>
                 ) : (
-                  <ul className="ninja-list">
-                    {listToShow.map((item) => (
-                      <CatalogRow
-                        key={item.id}
-                        item={item}
+                  <>
+                    <div className="jutsu-grid" role="list">
+                      {listToShow.map((item) => (
+                        <JutsuTile
+                          key={item.id}
+                          item={item}
+                          selected={item.id === selectedJutsuId}
+                          onSelect={() => setSelectedJutsuId(
+                            item.id === selectedJutsuId ? null : item.id,
+                          )}
+                        />
+                      ))}
+                    </div>
+                    {selectedJutsu ? (
+                      <JutsuDetail
+                        item={selectedJutsu}
                         saving={saving}
                         onUnlock={unlock}
+                        onClose={() => setSelectedJutsuId(null)}
                       />
-                    ))}
-                  </ul>
+                    ) : (
+                      <p className="hint jutsu-grid-hint">Toque num jutsu para ver detalhes e aprender.</p>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -504,14 +641,15 @@ export function NinjaPage() {
                 Ainda sem jutsus. Bata a meta de água e feche o dia em <Link to="/">Hoje</Link>.
               </p>
             ) : (
-              <ul className="ninja-owned">
+              <div className="jutsu-grid jutsu-grid-owned" role="list">
                 {owned.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.name}</strong>
-                    <span>{KIND_LABEL[item.kind] || item.kind} · {item.tier}</span>
-                  </li>
+                  <div key={item.id} className="jutsu-tile is-owned" role="listitem">
+                    <JutsuTileFace item={item} />
+                    <strong>{shortJutsuName(item.name)}</strong>
+                    <em>{KIND_LABEL[item.kind] || item.kind}</em>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
             {ninja.jinchuuriki ? (
               <div className="path-badge">
@@ -758,6 +896,73 @@ export function NinjaPage() {
   );
 }
 
+function JutsuTile({ item, selected, onSelect }) {
+  return (
+    <button
+      type="button"
+      className={`jutsu-tile${selected ? ' is-selected' : ''}${item.canUnlock ? ' can' : ' locked'}`}
+      onClick={onSelect}
+      aria-pressed={selected}
+      title={item.name}
+    >
+      <JutsuTileFace item={item} />
+      <strong>{shortJutsuName(item.name)}</strong>
+    </button>
+  );
+}
+
+function JutsuTileFace({ item }) {
+  const visual = visualForJutsu(item);
+  return (
+    <span className="jutsu-tile-art" aria-hidden="true">
+      {visual.type === 'seal' ? (
+        <img src={visual.src} alt="" />
+      ) : (
+        <span className="jutsu-tile-emoji">{visual.emoji}</span>
+      )}
+      {item.tier ? <span className={`jutsu-tier tier-${item.tier}`}>{item.tier}</span> : null}
+    </span>
+  );
+}
+
+function JutsuDetail({ item, saving, onUnlock, onClose, cta = 'Aprender' }) {
+  const natureTag = (item.requiresNatures || [])
+    .map((id) => NATURE_SHORT[id] || id)
+    .join('+') || 'Universal';
+  return (
+    <div className="jutsu-detail">
+      <div className="jutsu-detail-head">
+        <div>
+          <strong>{item.name}</strong>
+          <span className="ninja-meta">
+            <span className={`jutsu-tier tier-${item.tier}`}>{item.tier}</span>
+            {' · '}
+            {natureTag}
+            {' · '}
+            {item.costUnlockPoints} pts
+            {item.rankMin && item.rankMin !== 'academy' ? ` · ${item.rankMin}` : ''}
+          </span>
+        </div>
+        <button type="button" className="ghost jutsu-detail-close" onClick={onClose} aria-label="Fechar">
+          ×
+        </button>
+      </div>
+      {item.blurb ? <p className="hint">{item.blurb}</p> : null}
+      {item.locked && item.missing?.length ? (
+        <p className="hint">Falta: {item.missing.join(' · ')}</p>
+      ) : null}
+      <button
+        type="button"
+        className="primary"
+        disabled={saving || !item.canUnlock}
+        onClick={() => onUnlock(item.id)}
+      >
+        {item.canUnlock ? `${cta} · ${item.costUnlockPoints} pts` : 'Bloqueado'}
+      </button>
+    </div>
+  );
+}
+
 function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {
   const natureTag = (item.requiresNatures || [])
     .map((id) => NATURE_SHORT[id] || id)
@@ -791,6 +996,14 @@ function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {
       </button>
     </li>
   );
+}
+
+function shortJutsuName(name) {
+  const text = String(name || '').trim();
+  const paren = text.match(/\(([^)]+)\)\s*$/);
+  if (paren?.[1]) return paren[1];
+  if (text.length <= 22) return text;
+  return `${text.slice(0, 20)}…`;
 }
 
 function firstName(fullName) {
