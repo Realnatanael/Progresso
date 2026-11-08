@@ -1156,13 +1156,13 @@ a { color: var(--gold); }
 .ninja-avatar-img {
   position: relative;
   z-index: 1;
-  width: min(78%, 250px);
+  width: min(48%, 168px);
   height: auto;
-  max-height: 92%;
+  max-height: 68%;
   object-fit: contain;
   object-position: bottom center;
-  margin-bottom: 2%;
-  filter: drop-shadow(0 14px 20px rgba(0, 0, 0, 0.5));
+  margin-bottom: 6%;
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.45));
 }
 
 .ninja-avatar-empty {
@@ -1205,10 +1205,6 @@ a { color: var(--gold); }
   color: #f3e6c4;
 }
 
-.ninja-avatar-retry {
-  font-size: 0.82rem;
-  padding-inline: 0;
-}
 
 .ninja-head {
   position: absolute;

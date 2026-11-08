@@ -224,31 +224,6 @@ export function NinjaPage() {
             </div>
           </section>
 
-          <p className="hint">
-            <button
-              type="button"
-              className="ghost ninja-avatar-retry"
-              disabled={generatingAvatar || saving}
-              onClick={() => galleryInputRef.current?.click()}
-            >
-              {generatingAvatar ? 'Gerando de novo…' : 'Trocar foto (galeria)'}
-            </button>
-            {' · '}
-            <button
-              type="button"
-              className="ghost ninja-avatar-retry"
-              disabled={generatingAvatar || saving}
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              Tirar outra foto
-            </button>
-          </p>
-
-          <p className="hint">
-            Clã {ninja.clanName || '—'}
-            {' · definido no cadastro (sobrenome)'}
-          </p>
-
           {ninja.needsFirstNature ? (
             <section className="ninja-card ninja-nature-pick">
               <h2>Escolha seu primeiro elemento</h2>
