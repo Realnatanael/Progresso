@@ -4,7 +4,7 @@ import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { encodeSelfie } from '../lib/photoEncode.js';
-import { DESTINY_SEAL, sealForNature } from '../natures.js';
+import { DESTINY_SEAL, NATURE_SEALS, sealForNature } from '../natures.js';
 
 const STATS = [
   { id: 'ninjutsu', label: 'Ninjutsu' },
@@ -148,6 +148,10 @@ export function NinjaPage() {
     [learnable],
   );
   const listToShow = filter === 'locked' ? locked : filter === 'all' ? learnable : available;
+  const basicNatureCount = useMemo(
+    () => (ninja?.natures || []).filter((id) => Boolean(NATURE_SEALS[id])).length,
+    [ninja?.natures],
+  );
 
   return (
     <main className="app with-nav app-wide">
@@ -373,36 +377,46 @@ export function NinjaPage() {
 
           {!ninja.needsFirstNature && secondNatures.length > 0 ? (
             <section className="ninja-card">
-              <p className="nature-pick-kicker">Próximo selo</p>
+              <p className="nature-pick-kicker">Caminho longo</p>
               <h2>Elemento secundário</h2>
-              <p className="hint">
-                10 pts · Genin. Outro básico pra abrir fusões depois.
-              </p>
-              <div className="nature-seal-grid nature-seal-grid-compact" role="group" aria-label="Segundo elemento">
-                {secondNatures.map((item) => {
-                  const seal = sealForNature(item.natureId);
-                  const locked = item.locked || !item.canUnlock;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`nature-seal nature-seal-${item.natureId}${locked ? ' is-locked' : ''}`}
-                      disabled={saving || locked}
-                      onClick={() => unlock(item.id)}
-                    >
-                      <span className="nature-seal-art" aria-hidden="true">
-                        {seal ? <img src={seal.icon} alt="" /> : null}
-                      </span>
-                      <strong>{seal?.label || item.name}</strong>
-                      <em>{item.canUnlock ? `${item.costUnlockPoints} pts` : (item.missing?.[0] || 'Bloqueado')}</em>
-                    </button>
-                  );
-                })}
-              </div>
+              {secondNatures.some((item) => item.canUnlock) ? (
+                <>
+                  <p className="hint">
+                    28 pts · Jounin · chakra/nin/tai altos. Escolha o próximo básico.
+                  </p>
+                  <div className="nature-seal-grid nature-seal-grid-compact" role="group" aria-label="Segundo elemento">
+                    {secondNatures.map((item) => {
+                      const seal = sealForNature(item.natureId);
+                      const locked = item.locked || !item.canUnlock;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`nature-seal nature-seal-${item.natureId}${locked ? ' is-locked' : ''}`}
+                          disabled={saving || locked}
+                          onClick={() => unlock(item.id)}
+                        >
+                          <span className="nature-seal-art" aria-hidden="true">
+                            {seal ? <img src={seal.icon} alt="" /> : null}
+                          </span>
+                          <strong>{seal?.label || item.name}</strong>
+                          <em>{item.canUnlock ? `${item.costUnlockPoints} pts` : (item.missing?.[0] || 'Bloqueado')}</em>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <p className="hint">
+                  Bloqueado pra ninjas experientes: <strong>Jounin</strong>, ~160 chakra,
+                  ninjutsu/taijutsu altos e <strong>28 pts</strong>. A lista de selos só abre
+                  quando você estiver pronto.
+                </p>
+              )}
             </section>
           ) : null}
 
-          {!ninja.needsFirstNature && fusions.length > 0 ? (
+          {!ninja.needsFirstNature && basicNatureCount >= 2 && fusions.length > 0 ? (
             <section className="ninja-card">
               <h2>Fusões (Kekkei)</h2>
               <p className="hint">
@@ -422,7 +436,7 @@ export function NinjaPage() {
             </section>
           ) : null}
 
-          {!ninja.needsFirstNature && advancedNatures.length > 0 ? (
+          {!ninja.needsFirstNature && ninja.rank !== 'academy' && advancedNatures.some((item) => item.canUnlock) ? (
             <section className="ninja-card">
               <h2>Espirituais e especiais</h2>
               <p className="hint">

@@ -98,20 +98,20 @@ export const NINJA_CATALOG = [
   // —— 5 básicos: 1ª escolha grátis ——
   ...BASIC_NATURES.map(basicNatureEntry),
 
-  // —— 2ª natureza básica (paga) ——
+  // —— 2ª natureza básica (só ninja bem experiente) ——
   ...BASIC_NATURES.map((nat) => ({
     id: `nature2-${nat.id}`,
     kind: 'nature',
     natureId: nat.id,
     natureGroup: 'basic',
     name: `Segundo elemento: ${nat.label}`,
-    tier: 'C',
-    rankMin: 'genin',
-    costUnlockPoints: 10,
+    tier: 'A',
+    rankMin: 'jounin',
+    costUnlockPoints: 28,
     firstNatureOnly: false,
-    requires: { chakra: 40, ninjutsu: 18 },
+    requires: { chakra: 160, ninjutsu: 45, taijutsu: 25 },
     requiresIds: [],
-    blurb: `Desbloqueia ${nat.release} como elemento secundário.`,
+    blurb: `Desbloqueia ${nat.release} como elemento secundário — caminho longo.`,
   })),
 
   // —— Espirituais (compra direta; também saem na sorte) ——
