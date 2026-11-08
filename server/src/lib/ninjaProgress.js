@@ -18,6 +18,7 @@ import {
   SENNIN_PATHS,
 } from '../data/pathsCatalog.js';
 import { buildStoryProgress } from '../data/storyRoadmap.js';
+import { resolveActiveEye } from './ninjaAvatarLook.js';
 
 export function ensureNinja(user) {
   if (!user.ninja || typeof user.ninja !== 'object') {
@@ -82,6 +83,7 @@ export function publicNinja(user) {
     avatarReady: Boolean(n.avatarReady),
     avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
     avatarUpdatedAt: n.avatarUpdatedAt || null,
+    activeEye: resolveActiveEye(n),
     affinityRollCost: AFFINITY_ROLL_COST,
     canAffinityRoll: (n.natures || []).length === 0
       && (n.unlockPoints || 0) >= AFFINITY_ROLL_COST,
@@ -104,16 +106,19 @@ function rankLabelOf(rank) {
 }
 
 function nextRankInfo(n) {
-  if (n.rank === 'academy') {
-    const rule = RANK_UP.academy_to_genin;
-    return {
-      id: 'genin',
-      label: 'Genin',
-      requires: rule.requires,
-      ready: meetsRankUp(n, rule.requires),
-    };
-  }
-  return null;
+  const map = {
+    academy: RANK_UP.academy_to_genin,
+    genin: RANK_UP.genin_to_chuunin,
+    chuunin: RANK_UP.chuunin_to_jounin,
+  };
+  const rule = map[n.rank];
+  if (!rule) return null;
+  return {
+    id: rule.to,
+    label: rankLabelOf(rule.to),
+    requires: rule.requires,
+    ready: meetsRankUp(n, rule.requires),
+  };
 }
 
 function meetsRankUp(n, req) {
@@ -127,12 +132,20 @@ function meetsRankUp(n, req) {
 }
 
 export function applyRankUps(n) {
-  const rule = RANK_UP.academy_to_genin;
-  if (n.rank === rule.from && meetsRankUp(n, rule.requires)) {
-    n.rank = rule.to;
-    return true;
+  const promoted = [];
+  const chain = [
+    RANK_UP.academy_to_genin,
+    RANK_UP.genin_to_chuunin,
+    RANK_UP.chuunin_to_jounin,
+  ];
+  for (const rule of chain) {
+    if (!rule) continue;
+    if (n.rank === rule.from && meetsRankUp(n, rule.requires)) {
+      n.rank = rule.to;
+      promoted.push(rule.to);
+    }
   }
-  return false;
+  return promoted;
 }
 
 export function syncDayAwards(n, date, dayFlags) {
@@ -180,7 +193,8 @@ export function syncDayAwards(n, date, dayFlags) {
     changes.push({ type: 'unlockPoints', delta: -PERFECT_DAY_POINTS, date });
   }
 
-  if (applyRankUps(n)) changes.push({ type: 'rankUp', rank: n.rank });
+  const promoted = applyRankUps(n);
+  for (const rank of promoted) changes.push({ type: 'rankUp', rank });
   n.waterDates = trimDates(n.waterDates, 400);
   n.perfectDates = trimDates(n.perfectDates, 400);
   n.needsFirstNature = (n.natures || []).length === 0;

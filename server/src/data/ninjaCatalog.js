@@ -23,6 +23,16 @@ export const RANK_UP = {
     to: 'genin',
     requires: { chakra: 30, learnedJutsus: 2, statsSum: 15, natures: 1 },
   },
+  genin_to_chuunin: {
+    from: 'genin',
+    to: 'chuunin',
+    requires: { chakra: 100, learnedJutsus: 8, statsSum: 70 },
+  },
+  chuunin_to_jounin: {
+    from: 'chuunin',
+    to: 'jounin',
+    requires: { chakra: 140, learnedJutsus: 12, statsSum: 100 },
+  },
 };
 
 export const PERFECT_DAY_POINTS = 3;
@@ -280,5 +290,6 @@ export function defaultNinjaState() {
     workoutPicks: {},
     avatarReady: false,
     avatarUpdatedAt: null,
+    avatarLookKey: null,
   };
 }

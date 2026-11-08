@@ -1199,6 +1199,16 @@ a { color: var(--gold); }
   width: 100%;
 }
 
+.ninja-photo-actions-inline {
+  margin-top: 10px;
+  justify-items: start;
+}
+
+.ninja-photo-actions-inline .ghost {
+  font-size: 0.82rem;
+  padding: 6px 12px;
+}
+
 .ninja-photo-secondary {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(243, 230, 196, 0.35);
@@ -1259,6 +1269,24 @@ a { color: var(--gold); }
   letter-spacing: 0.04em;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.65);
   background: rgba(8, 10, 14, 0.45);
+}
+
+.ninja-eye-badge {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: #f3e6c4;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.65);
+  background: rgba(120, 24, 36, 0.55);
+  border: 1px solid rgba(226, 80, 90, 0.35);
 }
 
 .ninja-stats { display: grid; gap: 10px; }

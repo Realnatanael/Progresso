@@ -329,8 +329,8 @@ export function NinjaPage() {
             <div className="ninja-avatar-empty">
               <p className="ninja-avatar-empty-title">Portão da vila</p>
               <p className="hint">
-                Usamos idade, altura e peso do Perfil. O personagem fica como estudante da academia:
-                roupa comum, sem bandana.
+                Usamos idade, altura e peso do Perfil. O visual começa na academia e evolui com o rank
+                (bandana Genin, farda Jounin…) e com dōjutsu — sempre parecido com a sua foto.
               </p>
               <div className="ninja-photo-actions">
                 <button
@@ -380,6 +380,9 @@ export function NinjaPage() {
                 alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
               />
               <p className="ninja-rank-badge">{ninja.rankLabel}</p>
+              {ninja.activeEye?.name ? (
+                <p className="ninja-eye-badge">{ninja.activeEye.name}</p>
+              ) : null}
             </div>
 
             <div className="ninja-stats">
@@ -389,6 +392,17 @@ export function NinjaPage() {
               <StatBar label="Taijutsu" value={ninja.taijutsu} max={ninja.statMax} tone="tai" />
             </div>
           </section>
+
+          <div className="ninja-photo-actions ninja-photo-actions-inline">
+            <button
+              type="button"
+              className="ghost ninja-photo-secondary"
+              disabled={generatingAvatar || saving}
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              {generatingAvatar ? 'Atualizando visual…' : 'Atualizar foto de referência'}
+            </button>
+          </div>
 
           {ninja.needsFirstNature ? (
             <section className="ninja-card ninja-nature-pick">
