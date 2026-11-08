@@ -13,6 +13,32 @@ const measuresSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const ninjaSchema = new mongoose.Schema(
+  {
+    clanName: { type: String, default: '', trim: true, maxlength: 40 },
+    clanNameSyncedFromName: { type: Boolean, default: true },
+    rank: {
+      type: String,
+      enum: ['academy', 'genin', 'chuunin', 'jounin'],
+      default: 'academy',
+    },
+    chakra: { type: Number, default: 0, min: 0, max: 365 },
+    ninjutsu: { type: Number, default: 0, min: 0, max: 100 },
+    genjutsu: { type: Number, default: 0, min: 0, max: 100 },
+    taijutsu: { type: Number, default: 0, min: 0, max: 100 },
+    unlockPoints: { type: Number, default: 0, min: 0 },
+    natures: { type: [String], default: [] },
+    learnedJutsuIds: { type: [String], default: [] },
+    unlockedKekkeiIds: { type: [String], default: [] },
+    unlockedBijuuIds: { type: [String], default: [] },
+    pendingStatPick: { type: mongoose.Schema.Types.Mixed, default: null },
+    waterDates: { type: [String], default: [] },
+    perfectDates: { type: [String], default: [] },
+    workoutPicks: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+  },
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 40 },
@@ -22,6 +48,7 @@ const userSchema = new mongoose.Schema(
     age: { type: Number, default: null },
     gender: { type: String, enum: ['male', 'female', 'other'], default: null },
     measures: { type: measuresSchema, default: () => ({}) },
+    ninja: { type: ninjaSchema, default: () => ({}) },
   },
   { timestamps: true },
 );

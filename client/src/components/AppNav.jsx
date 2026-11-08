@@ -5,6 +5,7 @@ export function AppNav() {
     <nav className="app-nav" aria-label="Áreas">
       <NavLink to="/" end>Hoje</NavLink>
       <NavLink to="/corpo">Corpo</NavLink>
+      <NavLink to="/ninja">Ninja</NavLink>
       <NavLink to="/perfil">Perfil</NavLink>
     </nav>
   );

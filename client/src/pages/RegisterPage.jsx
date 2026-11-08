@@ -6,21 +6,30 @@ import { AuthLayout, Field } from '../components/AuthLayout.jsx';
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(event) {
     event.preventDefault();
+    if (submitting) return;
+
+    const data = new FormData(event.currentTarget);
+    const name = String(data.get('name') || '').trim();
+    const email = String(data.get('email') || '').trim();
+    const password = String(data.get('password') || '');
+
+    if (!name || !email || !password) {
+      setError('Preencha todos os campos.');
+      return;
+    }
+
     setError('');
     setSubmitting(true);
     try {
       await register(name, email, password);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Não foi possível criar a conta.');
     } finally {
       setSubmitting(false);
     }
@@ -32,31 +41,28 @@ export function RegisterPage() {
       subtitle="Uma conta só sua. A senha fica criptografada no banco."
       footer={<>Já tem conta? <Link to="/entrar">Entrar</Link></>}
     >
-      <form className="form" onSubmit={onSubmit}>
+      <form className="form" onSubmit={onSubmit} autoComplete="on">
         {error ? <p className="alert" role="alert">{error}</p> : null}
         <Field
           label="Nome"
+          name="name"
           autoComplete="name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
           minLength={2}
           maxLength={40}
           required
         />
         <Field
           label="Email"
+          name="email"
           type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="username"
           required
         />
         <Field
           label="Senha"
+          name="password"
           type="password"
           autoComplete="new-password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
           minLength={8}
           maxLength={72}
           required

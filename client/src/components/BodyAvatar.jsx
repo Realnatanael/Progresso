@@ -8,7 +8,7 @@ useGLTF.preload('/models/sg-male.glb');
 useGLTF.preload('/models/sg-female.glb');
 
 /** Bumpe quando pose/morph local mudar, para reclonar o skeleton no HMR. */
-const STANCE_REV = 28;
+const STANCE_REV = 30;
 
 const RECOVERY_GLOW = {
   red: new THREE.Color('#e84a3c'),
@@ -313,13 +313,17 @@ function prepareMuscleData(root) {
         }
       }
 
-      // —— Costas: tronco posterior ——
-      if (spineSkin >= 0.18 && armSkin < 0.45 && tmp.z < -0.012) {
-        const rear = smoothstep(-0.008, -0.05, tmp.z);
+      // —— Costas: tronco posterior (máscara suave) ——
+      if (spineSkin >= 0.14 && armSkin < 0.5 && tmp.z < -0.008) {
+        const rear = smoothstep(-0.004, -0.055, tmp.z);
         const mid = THREE.MathUtils.clamp(spineSkin, 0, 1);
         const ax = Math.abs(tmp.x);
-        const width = smoothstep(0.002, 0.02, ax) * (1 - smoothstep(0.1, 0.14, ax));
-        recoveryMasks.back[i] = Math.max(recoveryMasks.back[i], mid * rear * Math.max(0.35, width));
+        const width = smoothstep(0.001, 0.028, ax) * (1 - smoothstep(0.095, 0.145, ax));
+        const vertical = smoothstep(-0.14, -0.02, tmp.y) * (1 - smoothstep(0.12, 0.22, tmp.y));
+        recoveryMasks.back[i] = Math.max(
+          recoveryMasks.back[i],
+          mid * rear * Math.max(0.25, width) * Math.max(0.4, vertical),
+        );
       }
 
       // —— Coxa: espessura suave no UpLeg (quad + lateral) ——
@@ -474,51 +478,45 @@ function applyRecoveryGlow(root, recoveryMuscles = []) {
       let strength = 0;
       for (const [id, level] of active) {
         const mask = masks[id];
-        const w = mask ? mask[i] : 0;
-        if (w < 0.08) continue;
-        const amt = Math.min(1, w * 1.35);
+        const raw = mask ? mask[i] : 0;
+        // falloff suave, mas ainda bem visível
+        const amt = Math.pow(smoothstep(0.04, 0.55, raw), 1.15);
+        if (amt < 0.03) continue;
         _glowB.copy(RECOVERY_GLOW[level]);
-        _glowA.lerp(_glowB, amt);
+        _glowA.lerp(_glowB, amt * 0.92);
         strength = Math.max(strength, amt);
       }
-      // “brilho”: puxa um pouco pro branco nas áreas ativas
-      if (strength > 0.05) {
-        _glowA.lerp(GLOW_WHITE, strength * 0.18);
+      if (strength > 0.06) {
+        _glowA.lerp(GLOW_WHITE, strength * 0.16);
       }
       colors.setXYZ(i, _glowA.r, _glowA.g, _glowA.b);
     }
     colors.needsUpdate = true;
 
     const paint = (mat) => {
-      if (!mat || mat.userData?.recoveryPainted) return mat;
-      const next = mat;
-      next.vertexColors = true;
-      next.emissive = new THREE.Color('#ffffff');
-      next.emissiveIntensity = active.length ? 0.22 : 0;
-      if (!next.userData) next.userData = {};
-      if (!next.userData.recoveryShader) {
-        next.onBeforeCompile = (shader) => {
+      if (!mat) return mat;
+      mat.vertexColors = true;
+      if (!mat.emissive) mat.emissive = new THREE.Color('#ffffff');
+      mat.emissive.set('#ffffff');
+      mat.emissiveIntensity = active.length ? 0.38 : 0;
+      if (!mat.userData) mat.userData = {};
+      if (!mat.userData.recoveryShader) {
+        mat.onBeforeCompile = (shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
             '#include <emissivemap_fragment>',
             `#include <emissivemap_fragment>
              totalEmissiveRadiance *= vColor.rgb;`,
           );
         };
-        next.userData.recoveryShader = true;
-        next.needsUpdate = true;
+        mat.userData.recoveryShader = true;
+        mat.needsUpdate = true;
+      } else {
+        mat.emissiveIntensity = active.length ? 0.38 : 0;
       }
-      next.userData.recoveryPainted = true;
-      next.needsUpdate = true;
-      return next;
+      return mat;
     };
     if (Array.isArray(obj.material)) obj.material.forEach(paint);
     else paint(obj.material);
-
-    // atualiza intensidade se já pintado
-    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-    for (const mat of mats) {
-      if (mat) mat.emissiveIntensity = active.length ? 0.22 : 0;
-    }
   });
 }
 
@@ -611,7 +609,7 @@ function applyLocalParts(root, parts = {}, morph = {}) {
   root.updateMatrixWorld(true);
 }
 
-function ShotBody({ gender, definition, volume, parts, heightCm, recoveryMuscles }) {
+function ShotBody({ gender, definition, volume, parts, heightCm, recoveryMuscles, recoveryKey }) {
   const path = gender === 'female' ? '/models/sg-female.glb' : '/models/sg-male.glb';
   const { scene } = useGLTF(path);
   const weights = useMemo(
@@ -674,7 +672,7 @@ function ShotBody({ gender, definition, volume, parts, heightCm, recoveryMuscles
 
   useEffect(() => {
     applyRecoveryGlow(root, recoveryMuscles);
-  }, [root, recoveryMuscles]);
+  }, [root, recoveryMuscles, recoveryKey]);
 
   const heightScale = Math.min(1.15, Math.max(0.85, ((heightCm || 174) / 100) / SG_MALE_HEIGHT_M));
 
@@ -685,7 +683,7 @@ function ShotBody({ gender, definition, volume, parts, heightCm, recoveryMuscles
   );
 }
 
-function Scene({ gender, definition, volume, parts, heightCm, recoveryMuscles }) {
+function Scene({ gender, definition, volume, parts, heightCm, recoveryMuscles, recoveryKey }) {
   return (
     <>
       <ambientLight intensity={0.7} />
@@ -701,6 +699,7 @@ function Scene({ gender, definition, volume, parts, heightCm, recoveryMuscles })
           parts={parts}
           heightCm={heightCm}
           recoveryMuscles={recoveryMuscles}
+          recoveryKey={recoveryKey}
         />
       </Suspense>
       <ContactShadows position={[-0.22, -0.01, 0]} opacity={0.35} scale={4.5} blur={2.4} far={4} />
@@ -724,6 +723,7 @@ export function BodyAvatar({
   parts = {},
   heightCm = 174,
   recoveryMuscles = [],
+  recoveryKey = '',
   label,
   children,
 }) {
@@ -749,11 +749,10 @@ export function BodyAvatar({
             parts={parts}
             heightCm={heightCm}
             recoveryMuscles={recoveryMuscles}
+            recoveryKey={recoveryKey}
           />
         </Canvas>
-        <p className="body-hint">
-          {label || 'Arraste para girar'} · o corpo muda com o treino
-        </p>
+        <p className="body-hint">Arraste para girar</p>
       </div>
       {children}
     </div>

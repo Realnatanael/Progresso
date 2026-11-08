@@ -3,6 +3,7 @@ import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { HabitCard, KindPicker } from '../components/HabitCard.jsx';
 import { AppNav } from '../components/AppNav.jsx';
+import { syncNinja } from '../ninjaSync.js';
 
 function formatToday() {
   const label = new Intl.DateTimeFormat('pt-BR', {
@@ -41,6 +42,11 @@ export function HomePage() {
     };
   }, [date]);
 
+  function onBoardChange(next) {
+    setBoard(next);
+    syncNinja(date);
+  }
+
   async function addHabit(event) {
     event.preventDefault();
     const nextTitle = title.trim();
@@ -56,6 +62,7 @@ export function HomePage() {
       setTitle('');
       setKind('check');
       setGoal('');
+      syncNinja(date);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -80,7 +87,13 @@ export function HomePage() {
         <p className="date">{formatToday()}</p>
         <h1>Olá, {firstName}</h1>
         <p className={dayClosed ? 'summary done' : 'summary'}>
-          {total === 0 ? 'Nenhum hábito ainda' : dayClosed ? `Dia fechado · ${doneCount} de ${total}` : `${doneCount} de ${total} hoje`}
+          {loading
+            ? 'Carregando…'
+            : total === 0
+              ? 'Nenhum hábito ainda'
+              : dayClosed
+                ? `Dia fechado · ${doneCount} de ${total}`
+                : `${doneCount} de ${total} hoje`}
         </p>
         <div className="meter" aria-hidden="true">
           <span style={{ width: total ? `${(doneCount / total) * 100}%` : '0%' }} />
@@ -95,7 +108,7 @@ export function HomePage() {
 
       <ul className="habits">
         {board?.habits.map((habit) => (
-          <HabitCard key={habit.id} habit={habit} date={date} onChange={setBoard} />
+          <HabitCard key={habit.id} habit={habit} date={date} onChange={onBoardChange} />
         ))}
       </ul>
 

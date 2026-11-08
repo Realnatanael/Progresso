@@ -8,12 +8,13 @@ import { connectDb } from './db.js';
 import authRoutes from './routes/auth.js';
 import habitRoutes from './routes/habits.js';
 import bodyRoutes from './routes/body.js';
+import ninjaRoutes from './routes/ninja.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
 const port = Number(process.env.PORT) || 4000;
-const origin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
+const configuredOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
   console.error('Defina JWT_SECRET no arquivo server/.env (mínimo de 16 caracteres).');
@@ -27,7 +28,20 @@ if (!process.env.MONGODB_URI) {
 
 const app = express();
 
-app.use(cors({ origin, credentials: true }));
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (origin === configuredOrigin) return true;
+  if (origin === 'http://localhost:5173' || origin === 'http://127.0.0.1:5173') return true;
+  // Vite na LAN (celular / outro PC na rede)
+  return /^http:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|26\.\d{1,3}\.\d{1,3}\.\d{1,3}):5173$/.test(origin);
+}
+
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedOrigin(origin) ? (origin || configuredOrigin) : false);
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: '32kb' }));
 app.use(cookieParser());
 
@@ -38,6 +52,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/body', bodyRoutes);
+app.use('/api/ninja', ninjaRoutes);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Rota não encontrada.' });

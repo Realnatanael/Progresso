@@ -1,6 +1,6 @@
 import { CheckIn } from '../models/CheckIn.js';
 import { weekdayOf } from './dates.js';
-import { normalizeMuscles } from './muscles.js';
+import { guessMusclesFromName, normalizeMuscles } from './muscles.js';
 
 export const TRAINING_DAYS = [
   { weekday: 1, name: 'Segunda' },
@@ -53,7 +53,11 @@ export async function buildPlan(habit, userId, date) {
 }
 
 export function musclesForWeekday(habit, weekday) {
-  return normalizeMuscles(
+  const tagged = normalizeMuscles(
     orderedExercises(habit, weekday).flatMap((item) => item.muscles || []),
+  );
+  if (tagged.length) return tagged;
+  return normalizeMuscles(
+    orderedExercises(habit, weekday).flatMap((item) => guessMusclesFromName(item.name)),
   );
 }

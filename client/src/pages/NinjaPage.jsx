@@ -1,0 +1,408 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../auth.jsx';
+import { api, todayISO } from '../api.js';
+import { AppNav } from '../components/AppNav.jsx';
+
+const STATS = [
+  { id: 'ninjutsu', label: 'Ninjutsu' },
+  { id: 'genjutsu', label: 'Genjutsu' },
+  { id: 'taijutsu', label: 'Taijutsu' },
+];
+
+const KIND_LABEL = {
+  nature: 'Natureza',
+  jutsu: 'Jutsu',
+  kekkei: 'Kekkei',
+  bijuu: 'Bijuu',
+};
+
+export function NinjaPage() {
+  const { logout } = useAuth();
+  const date = todayISO();
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [clanDraft, setClanDraft] = useState('');
+  const [editingClan, setEditingClan] = useState(false);
+  const [filter, setFilter] = useState('available');
+
+  useEffect(() => {
+    let active = true;
+    api('/api/ninja/sync', { method: 'POST', body: { date } })
+      .then((payload) => {
+        if (!active) return;
+        setData(payload);
+        setClanDraft(payload.ninja?.clanName || '');
+      })
+      .catch((err) => {
+        if (active) setError(err.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [date]);
+
+  async function run(action) {
+    setSaving(true);
+    setError('');
+    try {
+      const payload = await action();
+      setData(payload);
+      if (payload?.ninja?.clanName) setClanDraft(payload.ninja.clanName);
+      return payload;
+    } catch (err) {
+      setError(err.message);
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function pickStat(stat) {
+    return run(() => api('/api/ninja/pick-stat', { method: 'POST', body: { date, stat } }));
+  }
+
+  function unlock(catalogId) {
+    return run(() => api('/api/ninja/unlock', { method: 'POST', body: { catalogId } }));
+  }
+
+  function saveClan(event) {
+    event.preventDefault();
+    const clanName = clanDraft.trim();
+    if (clanName.length < 2) {
+      setError('O sobrenome precisa ter pelo menos 2 caracteres.');
+      return undefined;
+    }
+    return run(async () => {
+      const payload = await api('/api/ninja/clan', { method: 'PATCH', body: { clanName } });
+      setEditingClan(false);
+      return payload;
+    });
+  }
+
+  const ninja = data?.ninja;
+  const catalog = data?.catalog || [];
+  const pending = ninja?.pendingStatPick?.date === date;
+
+  const firstNatures = useMemo(
+    () => catalog.filter((item) => item.kind === 'nature' && item.firstNatureOnly && !item.owned),
+    [catalog],
+  );
+  const secondNatures = useMemo(
+    () => catalog.filter((item) => item.kind === 'nature' && !item.firstNatureOnly && !item.owned),
+    [catalog],
+  );
+  const owned = useMemo(
+    () => catalog.filter((item) => item.owned && item.kind !== 'nature'),
+    [catalog],
+  );
+  const learnable = useMemo(
+    () => catalog.filter((item) => !item.owned && item.kind !== 'nature'),
+    [catalog],
+  );
+  const available = useMemo(
+    () => learnable.filter((item) => item.canUnlock),
+    [learnable],
+  );
+  const locked = useMemo(
+    () => learnable.filter((item) => item.locked),
+    [learnable],
+  );
+  const listToShow = filter === 'locked' ? locked : filter === 'all' ? learnable : available;
+
+  return (
+    <main className="app with-nav app-wide">
+      <header className="top">
+        <p className="mark">Progresso</p>
+        <button className="ghost" type="button" onClick={() => logout()}>Sair</button>
+      </header>
+
+      {loading ? <p className="screen-status">Abrindo o caminho ninja…</p> : null}
+      {error ? <p className="alert" role="alert">{error}</p> : null}
+
+      {!loading && ninja ? (
+        <>
+          <section className="today">
+            <p className="date">Ninja</p>
+            <h1>
+              {ninja.clanName
+                ? `${ninja.displayName || 'Ninja'} · Clã ${ninja.clanName}`
+                : 'Seu caminho ninja'}
+            </h1>
+            <p className="summary">
+              {ninja.rankLabel}
+              {' · '}
+              {ninja.unlockPoints} pts de desbloqueio
+              {ninja.natureLabels?.length ? ` · ${ninja.natureLabels.join(' · ')}` : ''}
+            </p>
+          </section>
+
+          <section className="ninja-stage">
+            <div className={`ninja-avatar rank-${ninja.rank}`} aria-hidden="true">
+              <div className="ninja-silhouette">
+                <span className="ninja-head" />
+                <span className="ninja-body" />
+                <span className="ninja-scarf" />
+              </div>
+              <p className="ninja-rank-badge">{ninja.rankLabel}</p>
+            </div>
+
+            <div className="ninja-stats">
+              <StatBar label="Chakra" value={ninja.chakra} max={ninja.chakraMax} tone="chakra" />
+              <StatBar label="Ninjutsu" value={ninja.ninjutsu} max={ninja.statMax} tone="nin" />
+              <StatBar label="Genjutsu" value={ninja.genjutsu} max={ninja.statMax} tone="gen" />
+              <StatBar label="Taijutsu" value={ninja.taijutsu} max={ninja.statMax} tone="tai" />
+            </div>
+          </section>
+
+          {editingClan ? (
+            <form className="ninja-clan" onSubmit={saveClan}>
+              <label className="field" htmlFor="clan-name">
+                <span>Sobrenome / clã</span>
+                <input
+                  id="clan-name"
+                  maxLength={40}
+                  placeholder="Extraído do seu nome; pode ajustar"
+                  value={clanDraft}
+                  onChange={(event) => setClanDraft(event.target.value)}
+                />
+              </label>
+              <div className="ninja-clan-actions">
+                <button className="primary" type="submit" disabled={saving || clanDraft.trim().length < 2}>
+                  Salvar
+                </button>
+                <button className="ghost" type="button" onClick={() => setEditingClan(false)}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <p className="hint">
+              Clã {ninja.clanName || '—'}
+              {' · '}
+              <button className="text" type="button" onClick={() => setEditingClan(true)}>
+                Ajustar sobrenome
+              </button>
+            </p>
+          )}
+
+          {ninja.needsFirstNature ? (
+            <section className="ninja-card ninja-nature-pick">
+              <h2>Escolha seu primeiro elemento</h2>
+              <p className="hint">
+                Grátis na academia. Depois disso, jutsus daquela natureza ficam disponíveis.
+              </p>
+              <div className="ninja-nature-grid">
+                {firstNatures.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="ninja-nature-btn"
+                    disabled={saving}
+                    onClick={() => unlock(item.id)}
+                  >
+                    <strong>{item.name}</strong>
+                    <span>{item.blurb}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : ninja.natureLabels?.length ? (
+            <p className="ninja-natures">
+              {ninja.natureLabels.map((label) => (
+                <span key={label} className="ninja-nature-chip">{label}</span>
+              ))}
+            </p>
+          ) : null}
+
+          {pending ? (
+            <section className="ninja-card">
+              <h2>Treino de hoje</h2>
+              <p className="hint">Escolha onde investir o ponto de treino.</p>
+              <div className="ninja-pick">
+                {STATS.map((stat) => (
+                  <button
+                    key={stat.id}
+                    type="button"
+                    className="primary"
+                    disabled={saving || ninja[stat.id] >= ninja.statMax}
+                    onClick={() => pickStat(stat.id)}
+                  >
+                    +1 {stat.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {ninja.nextRank ? (
+            <section className="ninja-card">
+              <h2>Próximo: {ninja.nextRank.label}</h2>
+              <p className="hint">
+                Chakra {ninja.nextRank.requires.chakra}
+                {' · '}
+                {ninja.nextRank.requires.learnedJutsus} jutsus
+                {' · '}
+                soma Nin+Gen+Tai {ninja.nextRank.requires.statsSum}
+                {ninja.nextRank.requires.natures
+                  ? ` · ${ninja.nextRank.requires.natures} natureza`
+                  : ''}
+              </p>
+              <p className={ninja.nextRank.ready ? 'summary done' : 'summary'}>
+                {ninja.nextRank.ready
+                  ? 'Requisitos ok — promoção ao sincronizar'
+                  : 'Continue treinando'}
+              </p>
+            </section>
+          ) : null}
+
+          {!ninja.needsFirstNature && secondNatures.length > 0 ? (
+            <section className="ninja-card">
+              <h2>Segundo elemento</h2>
+              <p className="hint">Caro e exige Genin + stats. Desbloqueia outra natureza.</p>
+              <ul className="ninja-list">
+                {secondNatures.map((item) => (
+                  <CatalogRow
+                    key={item.id}
+                    item={item}
+                    saving={saving}
+                    onUnlock={unlock}
+                    cta="Desbloquear"
+                  />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section className="ninja-card">
+            <div className="section-head">
+              <h2>Jutsus</h2>
+              <span className="hint">{ninja.unlockPoints} pts</span>
+            </div>
+            {ninja.needsFirstNature ? (
+              <p className="hint">Escolha a natureza acima; depois você gasta pts em jutsus básicos.</p>
+            ) : (
+              <>
+                <div className="ninja-filters">
+                  <button
+                    type="button"
+                    className={filter === 'available' ? 'primary' : 'ghost'}
+                    onClick={() => setFilter('available')}
+                  >
+                    Disponíveis ({available.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={filter === 'locked' ? 'primary' : 'ghost'}
+                    onClick={() => setFilter('locked')}
+                  >
+                    Bloqueados ({locked.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={filter === 'all' ? 'primary' : 'ghost'}
+                    onClick={() => setFilter('all')}
+                  >
+                    Todos ({learnable.length})
+                  </button>
+                </div>
+                {listToShow.length === 0 ? (
+                  <p className="hint">
+                    {filter === 'available'
+                      ? 'Nada liberado agora — feche o dia em Hoje para ganhar pts, ou veja Bloqueados.'
+                      : 'Lista vazia neste filtro.'}
+                  </p>
+                ) : (
+                  <ul className="ninja-list">
+                    {listToShow.map((item) => (
+                      <CatalogRow
+                        key={item.id}
+                        item={item}
+                        saving={saving}
+                        onUnlock={unlock}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="ninja-card">
+            <h2>Inventário</h2>
+            {owned.length === 0 ? (
+              <p className="hint">
+                Ainda sem jutsus. Bata a meta de água e feche o dia em <Link to="/">Hoje</Link>.
+              </p>
+            ) : (
+              <ul className="ninja-owned">
+                {owned.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.name}</strong>
+                    <span>{KIND_LABEL[item.kind] || item.kind} · {item.tier}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <p className="hint ninja-tip">
+            Água = +1 chakra/dia · Treino = +1 Nin/Gen/Tai · Dia completo = +3 pts
+          </p>
+        </>
+      ) : null}
+
+      <AppNav />
+    </main>
+  );
+}
+
+function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {
+  return (
+    <li className={item.canUnlock ? 'can' : 'locked'}>
+      <div>
+        <strong>{item.name}</strong>
+        <span className="ninja-meta">
+          {KIND_LABEL[item.kind] || item.kind}
+          {' · '}
+          {item.tier}
+          {' · '}
+          {item.costUnlockPoints} pts
+          {item.rankMin && item.rankMin !== 'academy' ? ` · ${item.rankMin}` : ''}
+        </span>
+        <p className="hint">{item.blurb}</p>
+        {item.locked && item.missing?.length ? (
+          <p className="hint">Falta: {item.missing.join(' · ')}</p>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className="primary"
+        disabled={saving || !item.canUnlock}
+        onClick={() => onUnlock(item.id)}
+      >
+        {item.canUnlock ? cta : 'Bloqueado'}
+      </button>
+    </li>
+  );
+}
+
+function StatBar({ label, value, max, tone }) {
+  const pct = max ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className={`ninja-bar ${tone}`}>
+      <div className="ninja-bar-head">
+        <span>{label}</span>
+        <strong>{value}/{max}</strong>
+      </div>
+      <div className="ninja-bar-track" aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}

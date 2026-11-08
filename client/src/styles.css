@@ -44,7 +44,7 @@ a { color: var(--gold); }
 }
 
 .app.with-nav {
-  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
 }
 
 .app.app-wide {
@@ -678,13 +678,20 @@ a { color: var(--gold); }
   color: var(--ink);
 }
 
+.recovery-strip {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+}
+
 .recovery-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
   align-items: center;
-  margin-top: 4px;
 }
+
+.recovery-legend.compact { gap: 8px; }
 
 .recovery-legend-item {
   display: inline-flex;
@@ -694,52 +701,49 @@ a { color: var(--gold); }
   color: var(--muted);
 }
 
-.recovery-legend-item.muted { opacity: 0.85; }
-
 .recovery-legend-item i {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   box-shadow: 0 0 8px currentColor;
   display: inline-block;
 }
 
-.recovery-now {
+.recovery-chips {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.recovery-now li {
-  display: flex;
+.recovery-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.88rem;
+  gap: 6px;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, currentColor 55%, transparent);
+  background: color-mix(in srgb, currentColor 22%, #14110e);
+  color: #f2ebe3;
 }
 
-.recovery-now strong { font-weight: 560; }
-
-.recovery-now span {
-  margin-left: auto;
-  color: var(--muted);
+.recovery-chip span {
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
 }
 
-.recovery-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  box-shadow: 0 0 10px currentColor;
+.recovery-chip.red { border-color: #e84a3c; box-shadow: inset 3px 0 0 #e84a3c; }
+.recovery-chip.yellow { border-color: #e2a23a; box-shadow: inset 3px 0 0 #e2a23a; }
+.recovery-chip.green { border-color: #4caf6a; box-shadow: inset 3px 0 0 #4caf6a; }
+.recovery-chip.blue { border-color: #4a8fe8; box-shadow: inset 3px 0 0 #4a8fe8; }
+
+.muscle-guess {
+  justify-self: start;
+  font-size: 0.8rem;
 }
-
-.recovery-dot.red { background: #e84a3c; color: #e84a3c; }
-.recovery-dot.yellow { background: #e2a23a; color: #e2a23a; }
-.recovery-dot.green { background: #4caf6a; color: #4caf6a; }
-.recovery-dot.blue { background: #4a8fe8; color: #4a8fe8; }
-
-.recovery-empty { margin: 0; }
 
 .exercise-add {
   display: flex;
@@ -1027,7 +1031,10 @@ a { color: var(--gold); }
   font-weight: 600;
 }
 
-.mark-workout { margin: 10px 0 14px; }
+.mark-workout {
+  margin: 10px 0 14px;
+  scroll-margin-bottom: 120px;
+}
 
 .weight-block .field { margin-bottom: 12px; }
 
@@ -1063,10 +1070,10 @@ a { color: var(--gold); }
   left: 50%;
   bottom: max(12px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: min(420px, calc(100% - 24px));
+  width: min(460px, calc(100% - 24px));
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 4px;
   padding: 6px;
   border-radius: 999px;
   background: rgba(20, 18, 15, 0.94);
@@ -1080,13 +1087,287 @@ a { color: var(--gold); }
   text-decoration: none;
   color: var(--muted);
   border-radius: 999px;
-  padding: 12px 10px;
+  padding: 12px 6px;
   font-weight: 600;
+  font-size: 0.92rem;
 }
 
 .app-nav a.active {
   background: var(--gold);
   color: var(--gold-ink);
+}
+
+/* —— Ninja / gamificação —— */
+.ninja-stage {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.ninja-avatar {
+  position: relative;
+  min-height: 220px;
+  border-radius: 22px;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(226, 162, 58, 0.18), transparent 55%),
+    linear-gradient(160deg, #1c1914 0%, #0e0c0a 100%);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.ninja-silhouette {
+  position: relative;
+  width: 88px;
+  height: 150px;
+}
+
+.ninja-head {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  border-radius: 50%;
+  background: #8a847a;
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.15);
+}
+
+.ninja-body {
+  position: absolute;
+  left: 50%;
+  top: 52px;
+  width: 56px;
+  height: 88px;
+  margin-left: -28px;
+  border-radius: 18px 18px 12px 12px;
+  background: #5c574f;
+}
+
+.ninja-scarf {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  width: 64px;
+  height: 14px;
+  margin-left: -32px;
+  border-radius: 8px;
+  background: var(--gold);
+  opacity: 0.9;
+}
+
+.ninja-avatar.rank-genin .ninja-scarf { box-shadow: 0 0 18px rgba(226, 162, 58, 0.45); }
+.ninja-avatar.rank-chuunin .ninja-body { background: #6a5a3a; }
+.ninja-avatar.rank-jounin .ninja-head { background: #a39b8c; }
+
+.ninja-rank-badge {
+  position: absolute;
+  bottom: 12px;
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--gold);
+  letter-spacing: 0.04em;
+}
+
+.ninja-stats { display: grid; gap: 10px; }
+
+.ninja-bar-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.88rem;
+  margin-bottom: 4px;
+}
+
+.ninja-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.ninja-bar-track span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--gold);
+  transition: width 0.25s ease;
+}
+
+.ninja-bar.chakra .ninja-bar-track span { background: #4a8fe8; }
+.ninja-bar.nin .ninja-bar-track span { background: #e84a3c; }
+.ninja-bar.gen .ninja-bar-track span { background: #9b6bff; }
+.ninja-bar.tai .ninja-bar-track span { background: #4caf6a; }
+
+.ninja-clan {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ninja-clan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ninja-natures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.ninja-nature-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--raise) 80%, #4a8fe8 20%);
+  font-size: 0.85rem;
+}
+
+.ninja-nature-pick {
+  border-color: color-mix(in srgb, var(--line) 50%, #4a8fe8 50%);
+}
+
+.ninja-nature-grid {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ninja-nature-btn {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+
+.ninja-nature-btn strong { font-size: 0.98rem; }
+
+.ninja-nature-btn span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ninja-nature-btn:hover:not(:disabled) {
+  border-color: #4a8fe8;
+}
+
+.ninja-nature-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ninja-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 14px;
+}
+
+.ninja-filters .ghost,
+.ninja-filters .primary {
+  font-size: 0.85rem;
+  padding: 6px 12px;
+}
+
+.ninja-card {
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--raise);
+  border: 1px solid var(--line);
+}
+
+.ninja-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.ninja-pick {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ninja-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.ninja-list li {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.ninja-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.ninja-list .ninja-meta {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.ninja-list .primary { width: 100%; }
+
+.ninja-owned {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.ninja-owned li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.92rem;
+}
+
+.ninja-owned span { color: var(--muted); }
+
+.ninja-tip { margin-top: 16px; }
+
+@media (min-width: 720px) {
+  .ninja-stage {
+    grid-template-columns: 1.1fr 1fr;
+    align-items: stretch;
+  }
+
+  .ninja-pick {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .ninja-nature-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ninja-list li {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+
+  .ninja-list .primary { width: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

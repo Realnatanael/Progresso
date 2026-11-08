@@ -6,7 +6,8 @@ import { AppNav } from '../components/AppNav.jsx';
 import { BodyAvatar } from '../components/BodyAvatar.jsx';
 import { formatKg, formatNumber, genderLabel } from '../format.js';
 import { USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
-import { MUSCLE_GROUPS, RECOVERY_LEVELS } from '../muscles.js';
+import { guessMusclesFromName, MUSCLE_GROUPS, RECOVERY_LEVELS } from '../muscles.js';
+import { syncNinja } from '../ninjaSync.js';
 
 const DAY_PICKS = [
   { weekday: 1, short: 'Seg' },
@@ -85,10 +86,11 @@ export function BodyPage() {
     if (!plan) return undefined;
     const name = (drafts[weekday] || '').trim();
     if (!name) return undefined;
+    const muscles = guessMusclesFromName(name);
     return run(async () => {
       await api(`/api/habits/${plan.id}/exercises`, {
         method: 'POST',
-        body: { date, weekday, name },
+        body: { date, weekday, name, muscles },
       });
       setDrafts((current) => ({ ...current, [weekday]: '' }));
       return refreshBody();
@@ -120,6 +122,50 @@ export function BodyPage() {
     const muscles = current.includes(muscleId)
       ? current.filter((id) => id !== muscleId)
       : [...current, muscleId];
+    // otimista: atualiza chips na hora
+    setBody((prev) => {
+      if (!prev?.workout) return prev;
+      return {
+        ...prev,
+        workout: {
+          ...prev.workout,
+          days: prev.workout.days.map((day) => ({
+            ...day,
+            exercises: day.exercises.map((item) => (
+              item.id === exercise.id ? { ...item, muscles } : item
+            )),
+          })),
+        },
+      };
+    });
+    return run(async () => {
+      await api(`/api/habits/${plan.id}/exercises/${exercise.id}`, {
+        method: 'PATCH',
+        body: { date, muscles },
+      });
+      return refreshBody();
+    });
+  }
+
+  function applyGuessedMuscles(exercise) {
+    if (!plan) return undefined;
+    const muscles = guessMusclesFromName(exercise.name);
+    if (!muscles.length) return undefined;
+    setBody((prev) => {
+      if (!prev?.workout) return prev;
+      return {
+        ...prev,
+        workout: {
+          ...prev.workout,
+          days: prev.workout.days.map((day) => ({
+            ...day,
+            exercises: day.exercises.map((item) => (
+              item.id === exercise.id ? { ...item, muscles } : item
+            )),
+          })),
+        },
+      };
+    });
     return run(async () => {
       await api(`/api/habits/${plan.id}/exercises/${exercise.id}`, {
         method: 'PATCH',
@@ -133,7 +179,9 @@ export function BodyPage() {
     if (!plan) return undefined;
     return run(async () => {
       await api(`/api/habits/${plan.id}/toggle`, { method: 'POST', body: { date } });
-      return refreshBody();
+      const bodyData = await refreshBody();
+      syncNinja(date);
+      return bodyData;
     });
   }
 
@@ -153,6 +201,7 @@ export function BodyPage() {
   const todayPlan = plan?.days.find((day) => day.today);
   const recoveryMuscles = body?.recovery?.muscles || [];
   const activeRecovery = recoveryMuscles.filter((item) => item.level);
+  const recoveryKey = activeRecovery.map((item) => `${item.id}:${item.level}`).join('|');
 
   return (
     <main className="app with-nav app-wide">
@@ -187,7 +236,7 @@ export function BodyPage() {
               parts={parts}
               heightCm={profile?.heightCm || USER_BASELINE.heightCm}
               recoveryMuscles={recoveryMuscles}
-              label={body?.avatar?.label}
+              recoveryKey={recoveryKey}
             >
               <aside className="body-hud">
                 <Link className="body-hud-edit" to="/perfil">Editar</Link>
@@ -222,32 +271,25 @@ export function BodyPage() {
               </aside>
             </BodyAvatar>
 
-            <div className="recovery-legend" aria-label="Recuperação muscular">
-              {RECOVERY_LEVELS.map((level) => (
-                <span key={level.id} className="recovery-legend-item">
-                  <i style={{ background: level.color }} />
-                  {level.label}
-                </span>
-              ))}
-              <span className="recovery-legend-item muted">Sem brilho = pronto</span>
-            </div>
             {activeRecovery.length ? (
-              <ul className="recovery-now">
-                {activeRecovery.map((item) => (
-                  <li key={item.id}>
-                    <i className={`recovery-dot ${item.level}`} />
-                    <strong>{item.label}</strong>
-                    <span>
-                      {item.hoursLeft > 0
-                        ? `~${formatHoursLeft(item.hoursLeft)}`
-                        : 'liberando'}
+              <div className="recovery-strip" aria-label="Recuperação muscular">
+                <div className="recovery-legend compact">
+                  {RECOVERY_LEVELS.map((level) => (
+                    <span key={level.id} className="recovery-legend-item" title={level.label}>
+                      <i style={{ background: level.color }} />
                     </span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="hint recovery-empty">Nenhum músculo em recuperação</p>
-            )}
+                  ))}
+                </div>
+                <ul className="recovery-chips">
+                  {activeRecovery.map((item) => (
+                    <li key={item.id} className={`recovery-chip ${item.level}`}>
+                      {item.label}
+                      <span>{formatHoursLeft(item.hoursLeft)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
 
           {plan ? (
@@ -279,50 +321,65 @@ export function BodyPage() {
                       <li key={day.weekday} className={day.today ? 'today' : ''}>
                         <div className="plan-read-line">
                           <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
-                          <span>
-                            {day.exercises.length
-                              ? day.exercises.map((item) => item.name).join(' · ')
-                              : 'Sem exercícios'}
-                          </span>
                         </div>
                         <div className="plan-edit">
                           {day.exercises.length ? (
                             <ul className="exercise-list">
-                              {day.exercises.map((exercise, index) => (
-                                <li key={exercise.id} className="exercise-row">
-                                  <div className="exercise-main">
-                                    <span>{exercise.name}</span>
-                                    <button type="button" className="text" aria-label={`Subir ${exercise.name}`} disabled={saving || index === 0} onClick={() => moveExercise(exercise.id, 'up')}>↑</button>
-                                    <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
-                                    <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
-                                  </div>
-                                  <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
-                                    {MUSCLE_GROUPS.map((muscle) => {
-                                      const on = (exercise.muscles || []).includes(muscle.id);
-                                      return (
-                                        <button
-                                          key={muscle.id}
-                                          type="button"
-                                          className="muscle-chip"
-                                          aria-pressed={on}
-                                          disabled={saving}
-                                          onClick={() => toggleMuscle(exercise, muscle.id)}
-                                        >
-                                          {muscle.label}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </li>
-                              ))}
+                              {day.exercises.map((exercise, index) => {
+                                const tagged = exercise.muscles || [];
+                                const guessed = guessMusclesFromName(exercise.name);
+                                const canGuess = guessed.length > 0
+                                  && (tagged.length === 0
+                                    || tagged.length !== guessed.length
+                                    || guessed.some((id) => !tagged.includes(id)));
+                                return (
+                                  <li key={exercise.id} className="exercise-row">
+                                    <div className="exercise-main">
+                                      <span>{exercise.name}</span>
+                                      <button type="button" className="text" aria-label={`Subir ${exercise.name}`} disabled={saving || index === 0} onClick={() => moveExercise(exercise.id, 'up')}>↑</button>
+                                      <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
+                                      <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
+                                    </div>
+                                    <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
+                                      {MUSCLE_GROUPS.map((muscle) => {
+                                        const on = tagged.includes(muscle.id);
+                                        return (
+                                          <button
+                                            key={muscle.id}
+                                            type="button"
+                                            className="muscle-chip"
+                                            aria-pressed={on}
+                                            disabled={saving}
+                                            onClick={() => toggleMuscle(exercise, muscle.id)}
+                                          >
+                                            {muscle.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                    {canGuess ? (
+                                      <button
+                                        type="button"
+                                        className="text muscle-guess"
+                                        disabled={saving}
+                                        onClick={() => applyGuessedMuscles(exercise)}
+                                      >
+                                        Sugerir pelos nomes
+                                      </button>
+                                    ) : null}
+                                  </li>
+                                );
+                              })}
                             </ul>
-                          ) : null}
+                          ) : (
+                            <p className="hint">Sem exercícios</p>
+                          )}
                           <form className="exercise-add" onSubmit={(event) => addExercise(event, day.weekday)}>
                             <label className="sr" htmlFor={`ex-${day.weekday}`}>Exercício de {day.name}</label>
                             <input
                               id={`ex-${day.weekday}`}
                               maxLength={80}
-                              placeholder="Novo exercício"
+                              placeholder="Ex.: peito e tríceps"
                               value={drafts[day.weekday] || ''}
                               onChange={(event) => setDrafts((current) => ({ ...current, [day.weekday]: event.target.value }))}
                             />

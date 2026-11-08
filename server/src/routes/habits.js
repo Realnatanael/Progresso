@@ -6,7 +6,7 @@ import { WaterEntry } from '../models/WaterEntry.js';
 import { requireAuth } from '../middleware/auth.js';
 import { computeScheduledStreak, computeStreak, isIsoDate, lastDays, weekdayOf } from '../lib/dates.js';
 import { activeDaySet, buildPlan, musclesForWeekday, normalizeDays, orderedExercises } from '../lib/exercisePlan.js';
-import { normalizeMuscles } from '../lib/muscles.js';
+import { guessMusclesFromName, normalizeMuscles } from '../lib/muscles.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -157,7 +157,8 @@ router.post('/:id/exercises', async (req, res, next) => {
     if (sameDay.length >= 20) {
       return res.status(400).json({ error: 'Limite de 20 exercícios neste dia.' });
     }
-    const muscles = normalizeMuscles(req.body?.muscles);
+    const fromBody = normalizeMuscles(req.body?.muscles);
+    const muscles = fromBody.length ? fromBody : guessMusclesFromName(name);
     habit.exercises.push({ weekday, name, position: sameDay.length, muscles });
     await habit.save();
     res.status(201).json(await buildPlan(habit, req.user._id, date));

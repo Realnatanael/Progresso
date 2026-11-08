@@ -10,6 +10,16 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:4000',
         changeOrigin: true,
+        // Garante que Set-Cookie do login chegue no browser via Vite.
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes) => {
+            const raw = proxyRes.headers['set-cookie'];
+            if (!raw) return;
+            proxyRes.headers['set-cookie'] = raw.map((cookie) => (
+              cookie.replace(/;\s*Secure/gi, '').replace(/;\s*Domain=[^;]+/gi, '')
+            ));
+          });
+        },
       },
     },
   },

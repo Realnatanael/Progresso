@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { api } from './api.js';
 
 const AuthContext = createContext(null);
@@ -6,22 +7,21 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  /** Invalida /api/auth/me atrasado pra não apagar o user depois do login. */
+  const authGen = useRef(0);
 
   useEffect(() => {
-    let active = true;
+    const gen = ++authGen.current;
     api('/api/auth/me')
       .then((data) => {
-        if (active) setUser(data.user);
+        if (gen === authGen.current) setUser(data.user);
       })
       .catch(() => {
-        if (active) setUser(null);
+        if (gen === authGen.current) setUser(null);
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (gen === authGen.current) setLoading(false);
       });
-    return () => {
-      active = false;
-    };
   }, []);
 
   const value = useMemo(
@@ -29,16 +29,37 @@ export function AuthProvider({ children }) {
       user,
       loading,
       async login(email, password) {
-        const data = await api('/api/auth/login', { method: 'POST', body: { email, password } });
-        setUser(data.user);
+        const data = await api('/api/auth/login', {
+          method: 'POST',
+          body: { email, password },
+        });
+        authGen.current += 1;
+        // Grava o user antes de qualquer navigate — evita bounce pra /entrar.
+        flushSync(() => {
+          setUser(data.user);
+          setLoading(false);
+        });
+        return data.user;
       },
       async register(name, email, password) {
-        const data = await api('/api/auth/register', { method: 'POST', body: { name, email, password } });
-        setUser(data.user);
+        const data = await api('/api/auth/register', {
+          method: 'POST',
+          body: { name, email, password },
+        });
+        authGen.current += 1;
+        flushSync(() => {
+          setUser(data.user);
+          setLoading(false);
+        });
+        return data.user;
       },
       async logout() {
-        await api('/api/auth/logout', { method: 'POST' });
-        setUser(null);
+        authGen.current += 1;
+        try {
+          await api('/api/auth/logout', { method: 'POST' });
+        } finally {
+          flushSync(() => setUser(null));
+        }
       },
     }),
     [user, loading],

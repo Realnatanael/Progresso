@@ -5,6 +5,7 @@ import { RegisterPage } from './pages/RegisterPage.jsx';
 import { HomePage } from './pages/HomePage.jsx';
 import { BodyPage } from './pages/BodyPage.jsx';
 import { ProfilePage } from './pages/ProfilePage.jsx';
+import { NinjaPage } from './pages/NinjaPage.jsx';
 
 function ScreenStatus() {
   return <p className="screen-status">Abrindo…</p>;
@@ -31,6 +32,7 @@ export default function App() {
       <Route path="/criar-conta" element={<Guest><RegisterPage /></Guest>} />
       <Route path="/" element={<Protected><HomePage /></Protected>} />
       <Route path="/corpo" element={<Protected><BodyPage /></Protected>} />
+      <Route path="/ninja" element={<Protected><NinjaPage /></Protected>} />
       <Route path="/perfil" element={<Protected><ProfilePage /></Protected>} />
       <Route path="/exercicios/:id" element={<Navigate to="/corpo" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
