@@ -31,6 +31,10 @@ const ninjaSchema = new mongoose.Schema(
     learnedJutsuIds: { type: [String], default: [] },
     unlockedKekkeiIds: { type: [String], default: [] },
     unlockedBijuuIds: { type: [String], default: [] },
+    /** { bijuuId, name, tails, buff, limit, sealedAt } */
+    jinchuuriki: { type: mongoose.Schema.Types.Mixed, default: null },
+    /** id do caminho sennin escolhido */
+    senninPath: { type: String, default: null },
     pendingStatPick: { type: mongoose.Schema.Types.Mixed, default: null },
     waterDates: { type: [String], default: [] },
     perfectDates: { type: [String], default: [] },
