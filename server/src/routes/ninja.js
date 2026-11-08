@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { User } from '../models/User.js';
+import { WeightEntry } from '../models/WeightEntry.js';
 import { isIsoDate } from '../lib/dates.js';
 import { dayFlagsForUser } from '../lib/ninjaDayFlags.js';
 import {
@@ -12,9 +13,13 @@ import {
   tryUnlock,
 } from '../lib/ninjaProgress.js';
 import { fetchDattebayo } from '../lib/dattebayo.js';
+import { generateNinjaAvatarImage } from '../lib/geminiAvatar.js';
 
 const router = Router();
 router.use(requireAuth);
+
+const MAX_PHOTO_BYTES = 2.5 * 1024 * 1024;
+const ALLOWED_PHOTO_MIME = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 
 router.get('/', async (req, res, next) => {
   try {
@@ -122,6 +127,74 @@ router.patch('/clan', async (req, res, next) => {
     await user.save();
     res.json(buildPayload(user));
   } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/avatar', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('+ninjaAvatarData +ninjaAvatarMime');
+    if (!user?.ninjaAvatarData?.length) {
+      return res.status(404).json({ error: 'Avatar ainda não gerado.' });
+    }
+    res.setHeader('Content-Type', user.ninjaAvatarMime || 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return res.send(user.ninjaAvatarData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/avatar', async (req, res, next) => {
+  try {
+    const photoBase64 = String(req.body?.photoBase64 || '').replace(/^data:[^;]+;base64,/, '').trim();
+    const photoMime = String(req.body?.photoMime || 'image/jpeg').toLowerCase();
+    if (!photoBase64 || photoBase64.length < 64) {
+      return res.status(400).json({ error: 'Envie uma foto sua.' });
+    }
+    if (!ALLOWED_PHOTO_MIME.has(photoMime)) {
+      return res.status(400).json({ error: 'Use foto JPEG, PNG ou WebP.' });
+    }
+    const approxBytes = Math.floor((photoBase64.length * 3) / 4);
+    if (approxBytes > MAX_PHOTO_BYTES) {
+      return res.status(400).json({ error: 'Foto grande demais. Tire outra mais próxima ou comprima.' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    if (!user.age || !user.heightCm || !user.gender) {
+      return res.status(400).json({
+        error: 'Complete idade, altura e gênero no Perfil antes de gerar o personagem.',
+      });
+    }
+
+    const latestWeight = await WeightEntry.findOne({ userId: user._id }).sort({ date: -1, createdAt: -1 }).lean();
+    const n = ensureNinja(user);
+
+    const generated = await generateNinjaAvatarImage({
+      photoBase64,
+      photoMime,
+      age: user.age,
+      heightCm: user.heightCm,
+      weightKg: latestWeight?.kg ?? null,
+      gender: user.gender,
+      clanName: n.clanName || '',
+      displayName: user.name || '',
+    });
+
+    user.ninjaAvatarData = generated.buffer;
+    user.ninjaAvatarMime = generated.mime;
+    n.avatarReady = true;
+    n.avatarUpdatedAt = new Date();
+    user.markModified('ninja');
+    await user.save();
+
+    res.json(buildPayload(user, [{ type: 'avatar' }]));
+  } catch (error) {
+    if (error.publicMessage) {
+      return res.status(error.status || 500).json({ error: error.publicMessage });
+    }
     next(error);
   }
 });

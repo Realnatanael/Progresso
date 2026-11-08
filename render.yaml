@@ -16,3 +16,7 @@ services:
         generateValue: true
       - key: CLIENT_ORIGIN
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_IMAGE_MODEL
+        value: gemini-2.5-flash-image

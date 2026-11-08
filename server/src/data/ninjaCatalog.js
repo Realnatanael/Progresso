@@ -970,5 +970,7 @@ export function defaultNinjaState() {
     waterDates: [],
     perfectDates: [],
     workoutPicks: {},
+    avatarReady: false,
+    avatarUpdatedAt: null,
   };
 }

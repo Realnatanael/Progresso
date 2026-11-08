@@ -57,6 +57,9 @@ export function publicNinja(user) {
     unlockedBijuuIds: [...(n.unlockedBijuuIds || [])],
     pendingStatPick: n.pendingStatPick || null,
     nextRank: nextRankInfo(n),
+    avatarReady: Boolean(n.avatarReady),
+    avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
+    avatarUpdatedAt: n.avatarUpdatedAt || null,
   };
 }
 
