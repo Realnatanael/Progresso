@@ -42,6 +42,8 @@ const ninjaSchema = new mongoose.Schema(
     /** true depois da 1ª geração com Gemini */
     avatarReady: { type: Boolean, default: false },
     avatarUpdatedAt: { type: Date, default: null },
+    /** rank|eye:stage — último visual gerado (pra regenerar só quando muda) */
+    avatarLookKey: { type: String, default: null },
   },
   { _id: false },
 );
@@ -59,6 +61,9 @@ const userSchema = new mongoose.Schema(
     /** PNG/JPEG gerado; select:false pra não ir em todo GET */
     ninjaAvatarData: { type: Buffer, default: null, select: false },
     ninjaAvatarMime: { type: String, default: null, select: false },
+    /** Selfie original pra regenerar o visual quando rank/olhos mudam */
+    ninjaSelfieData: { type: Buffer, default: null, select: false },
+    ninjaSelfieMime: { type: String, default: null, select: false },
   },
   { timestamps: true },
 );

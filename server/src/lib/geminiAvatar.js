@@ -16,6 +16,8 @@ export async function generateNinjaAvatarImage({
   gender,
   clanName,
   displayName,
+  rank = 'academy',
+  eye = null,
 }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -33,6 +35,8 @@ export async function generateNinjaAvatarImage({
     gender,
     clanName,
     displayName,
+    rank,
+    eye,
   });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;

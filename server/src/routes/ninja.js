@@ -16,6 +16,12 @@ import {
 } from '../lib/ninjaProgress.js';
 import { fetchDattebayo } from '../lib/dattebayo.js';
 import { generateNinjaAvatarImage } from '../lib/geminiAvatar.js';
+import {
+  avatarLookFromNinja,
+  avatarLookKey,
+  avatarLookKeyFromNinja,
+} from '../lib/ninjaAvatarLook.js';
+import { maybeRefreshNinjaAvatar } from '../lib/ninjaAvatarRefresh.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -36,9 +42,10 @@ router.get('/', async (req, res, next) => {
     let changes = [];
     if (date) {
       const flags = await dayFlagsForUser(user._id, date);
+      const lookBefore = avatarLookKeyFromNinja(n);
       changes = syncDayAwards(n, date, flags);
       user.markModified('ninja');
-      await user.save();
+      await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
     }
 
     res.json(buildPayload(user, changes));
@@ -57,9 +64,10 @@ router.post('/sync', async (req, res, next) => {
 
     const n = ensureNinja(user);
     const flags = await dayFlagsForUser(user._id, date);
+    const lookBefore = avatarLookKeyFromNinja(n);
     const changes = syncDayAwards(n, date, flags);
     user.markModified('ninja');
-    await user.save();
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
 
     res.json(buildPayload(user, changes, flags));
   } catch (error) {
@@ -79,14 +87,16 @@ router.post('/pick-stat', async (req, res, next) => {
     const n = ensureNinja(user);
     // garante que o treino do dia ainda conta
     const flags = await dayFlagsForUser(user._id, date);
+    const lookBefore = avatarLookKeyFromNinja(n);
     syncDayAwards(n, date, flags);
 
     const result = pickStat(n, date, stat);
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');
-    await user.save();
-    res.json(buildPayload(user, [{ type: 'stat', stat, delta: +1, date }]));
+    const changes = [{ type: 'stat', stat, delta: +1, date }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
   } catch (error) {
     next(error);
   }
@@ -101,12 +111,14 @@ router.post('/unlock', async (req, res, next) => {
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
     const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
     const result = tryUnlock(n, catalogId);
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');
-    await user.save();
-    res.json(buildPayload(user, [{ type: 'unlock', catalogId }]));
+    const changes = [{ type: 'unlock', catalogId }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
   } catch (error) {
     next(error);
   }
@@ -118,12 +130,14 @@ router.post('/affinity-roll', async (req, res, next) => {
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
     const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
     const result = rollFirstAffinity(n);
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');
-    await user.save();
-    res.json(buildPayload(user, [{ type: 'affinity-roll', result: result.result }]));
+    const changes = [{ type: 'affinity-roll', result: result.result }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
   } catch (error) {
     next(error);
   }
@@ -135,12 +149,14 @@ router.post('/jinchuuriki-roll', async (req, res, next) => {
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
     const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
     const result = rollJinchuuriki(n);
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');
-    await user.save();
-    res.json(buildPayload(user, [{ type: 'jinchuuriki-roll', jinchuuriki: result.jinchuuriki }]));
+    const changes = [{ type: 'jinchuuriki-roll', jinchuuriki: result.jinchuuriki }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
   } catch (error) {
     next(error);
   }
@@ -200,9 +216,7 @@ router.post('/avatar', async (req, res, next) => {
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
     const n = ensureNinja(user);
-    if (n.avatarReady) {
-      return res.status(409).json({ error: 'Seu personagem já foi criado.' });
-    }
+    const recreating = Boolean(n.avatarReady);
 
     if (!user.age || !user.heightCm || !user.gender) {
       return res.status(400).json({
@@ -211,6 +225,7 @@ router.post('/avatar', async (req, res, next) => {
     }
 
     const latestWeight = await WeightEntry.findOne({ userId: user._id }).sort({ date: -1, createdAt: -1 }).lean();
+    const look = avatarLookFromNinja(n);
 
     const generated = await generateNinjaAvatarImage({
       photoBase64,
@@ -221,16 +236,21 @@ router.post('/avatar', async (req, res, next) => {
       gender: user.gender,
       clanName: n.clanName || '',
       displayName: user.name || '',
+      rank: look.rank,
+      eye: look.eye,
     });
 
+    user.ninjaSelfieData = Buffer.from(photoBase64, 'base64');
+    user.ninjaSelfieMime = photoMime;
     user.ninjaAvatarData = generated.buffer;
     user.ninjaAvatarMime = generated.mime;
     n.avatarReady = true;
     n.avatarUpdatedAt = new Date();
+    n.avatarLookKey = avatarLookKey(look);
     user.markModified('ninja');
     await user.save();
 
-    res.json(buildPayload(user, [{ type: 'avatar' }]));
+    res.json(buildPayload(user, [{ type: recreating ? 'avatar-refresh' : 'avatar' }]));
   } catch (error) {
     if (error.publicMessage) {
       return res.status(error.status || 500).json({ error: error.publicMessage });
@@ -265,6 +285,22 @@ function buildPayload(user, changes = [], flags = null) {
     changes,
     flags,
   };
+}
+
+async function saveNinjaWithAvatarRefresh(user, lookBefore, changes) {
+  const lookAfter = avatarLookKeyFromNinja(ensureNinja(user));
+  if (lookBefore !== lookAfter) {
+    try {
+      const refresh = await maybeRefreshNinjaAvatar(user, { force: true });
+      if (refresh.refreshed) {
+        changes.push({ type: 'avatar-refresh', lookKey: refresh.lookKey });
+      }
+    } catch (error) {
+      console.error('Falha ao regenerar avatar ninja:', error?.publicMessage || error?.message || error);
+      changes.push({ type: 'avatar-refresh-failed' });
+    }
+  }
+  await user.save();
 }
 
 export default router;
