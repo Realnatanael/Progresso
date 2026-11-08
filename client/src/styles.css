@@ -1568,6 +1568,25 @@ a { color: var(--gold); }
   padding-top: 0;
 }
 
+.jutsu-tier {
+  display: inline-block;
+  min-width: 1.2em;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: #1a1410;
+  background: var(--gold);
+}
+
+.jutsu-tier.tier-S { background: #e84a3c; color: #fff; }
+.jutsu-tier.tier-A { background: #e2a23a; }
+.jutsu-tier.tier-B { background: #4a8fe8; color: #fff; }
+.jutsu-tier.tier-C { background: #4caf6a; color: #fff; }
+.jutsu-tier.tier-D { background: #9b6bff; color: #fff; }
+.jutsu-tier.tier-E { background: #8d8170; color: #fff; }
+
 .ninja-list .ninja-meta {
   display: block;
   color: var(--muted);
