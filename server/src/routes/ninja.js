@@ -163,6 +163,11 @@ router.post('/avatar', async (req, res, next) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
 
+    const n = ensureNinja(user);
+    if (n.avatarReady) {
+      return res.status(409).json({ error: 'Seu personagem já foi criado.' });
+    }
+
     if (!user.age || !user.heightCm || !user.gender) {
       return res.status(400).json({
         error: 'Complete idade, altura e gênero no Perfil antes de gerar o personagem.',
@@ -170,7 +175,6 @@ router.post('/avatar', async (req, res, next) => {
     }
 
     const latestWeight = await WeightEntry.findOne({ userId: user._id }).sort({ date: -1, createdAt: -1 }).lean();
-    const n = ensureNinja(user);
 
     const generated = await generateNinjaAvatarImage({
       photoBase64,
