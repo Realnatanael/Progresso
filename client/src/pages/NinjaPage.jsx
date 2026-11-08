@@ -4,6 +4,7 @@ import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { encodeSelfie } from '../lib/photoEncode.js';
+import { DESTINY_SEAL, sealForNature } from '../natures.js';
 
 const STATS = [
   { id: 'ninjutsu', label: 'Ninjutsu' },
@@ -251,49 +252,82 @@ export function NinjaPage() {
 
           {ninja.needsFirstNature ? (
             <section className="ninja-card ninja-nature-pick">
-              <h2>Escolha seu primeiro elemento</h2>
+              <p className="nature-pick-kicker">Selos da Academia</p>
+              <h2>Escolha seu elemento</h2>
               <p className="hint">
-                Os 5 básicos são grátis. Ou junte {ninja.affinityRollCost} pts e invoque uma
-                afinidade rara (espiritual, kekkei ou especial).
+                Toque num selo básico — grátis. Ou guarde pts e invoque o Destino.
               </p>
-              <div className="ninja-nature-grid">
-                {firstNatures.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="ninja-nature-btn"
-                    disabled={saving}
-                    onClick={() => unlock(item.id)}
-                  >
-                    <strong>{item.name}</strong>
-                    <span>{item.blurb}</span>
-                  </button>
-                ))}
+              <div className="nature-seal-grid" role="group" aria-label="Elementos básicos">
+                {firstNatures.map((item) => {
+                  const seal = sealForNature(item.natureId);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`nature-seal nature-seal-${item.natureId}`}
+                      disabled={saving}
+                      onClick={() => unlock(item.id)}
+                    >
+                      <span className="nature-seal-art" aria-hidden="true">
+                        {seal ? (
+                          <img src={seal.icon} alt="" />
+                        ) : (
+                          <span className="nature-seal-fallback">{item.natureId?.[0]?.toUpperCase()}</span>
+                        )}
+                      </span>
+                      <strong>{seal?.label || item.name}</strong>
+                      <em>{seal?.release || 'Básico'}</em>
+                      <span className="nature-seal-tag">Grátis</span>
+                    </button>
+                  );
+                })}
               </div>
+
               <button
                 type="button"
-                className="primary ninja-roll-btn"
+                className={`nature-destiny${ninja.canAffinityRoll ? ' is-ready' : ''}`}
                 disabled={saving || !ninja.canAffinityRoll}
                 onClick={() => rollAffinity()}
               >
-                {ninja.canAffinityRoll
-                  ? `Invocar afinidade rara (${ninja.affinityRollCost} pts)`
-                  : `Invocar rara — falta pts (${ninja.unlockPoints}/${ninja.affinityRollCost})`}
+                <span className="nature-seal-art" aria-hidden="true">
+                  <img src={DESTINY_SEAL.icon} alt="" />
+                </span>
+                <span className="nature-destiny-copy">
+                  <strong>Invocar Destino</strong>
+                  <span>
+                    {ninja.canAffinityRoll
+                      ? `${ninja.affinityRollCost} pts · afinidade rara`
+                      : `${ninja.unlockPoints}/${ninja.affinityRollCost} pts`}
+                  </span>
+                </span>
               </button>
-              <p className="hint">
-                Na sorte podem sair Yin/Yang, fusões (gelo, madeira, lava…) ou especiais
-                (cristal, trevas…). Se sair fusão, os elementos-base vêm junto.
+              <p className="hint nature-destiny-hint">
+                Raros: Yin/Yang, fusões (gelo, madeira…) ou especiais. Fusões trazem os básicos.
               </p>
             </section>
           ) : (
-            <p className="ninja-natures">
-              {(ninja.natureLabels || []).map((label) => (
-                <span key={label} className="ninja-nature-chip">{label}</span>
-              ))}
+            <div className="ninja-natures">
+              {(ninja.natures || []).map((natureId, index) => {
+                const seal = sealForNature(natureId);
+                const label = ninja.natureLabels?.[index] || natureId;
+                if (seal) {
+                  return (
+                    <span key={natureId} className="nature-owned-seal" title={label}>
+                      <img src={seal.icon} alt={label} />
+                      <em>{seal.release}</em>
+                    </span>
+                  );
+                }
+                return (
+                  <span key={natureId} className="ninja-nature-chip">
+                    {label}
+                  </span>
+                );
+              })}
               {(ninja.kekkeiLabels || []).map((label) => (
                 <span key={label} className="ninja-nature-chip ninja-nature-chip-fusion">{label}</span>
               ))}
-            </p>
+            </div>
           )}
 
           {pending ? (
@@ -339,21 +373,32 @@ export function NinjaPage() {
 
           {!ninja.needsFirstNature && secondNatures.length > 0 ? (
             <section className="ninja-card">
+              <p className="nature-pick-kicker">Próximo selo</p>
               <h2>Elemento secundário</h2>
               <p className="hint">
-                10 pts · Genin. Escolha outro dos 5 básicos pra depois liberar fusões.
+                10 pts · Genin. Outro básico pra abrir fusões depois.
               </p>
-              <ul className="ninja-list">
-                {secondNatures.map((item) => (
-                  <CatalogRow
-                    key={item.id}
-                    item={item}
-                    saving={saving}
-                    onUnlock={unlock}
-                    cta="Desbloquear"
-                  />
-                ))}
-              </ul>
+              <div className="nature-seal-grid nature-seal-grid-compact" role="group" aria-label="Segundo elemento">
+                {secondNatures.map((item) => {
+                  const seal = sealForNature(item.natureId);
+                  const locked = item.locked || !item.canUnlock;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`nature-seal nature-seal-${item.natureId}${locked ? ' is-locked' : ''}`}
+                      disabled={saving || locked}
+                      onClick={() => unlock(item.id)}
+                    >
+                      <span className="nature-seal-art" aria-hidden="true">
+                        {seal ? <img src={seal.icon} alt="" /> : null}
+                      </span>
+                      <strong>{seal?.label || item.name}</strong>
+                      <em>{item.canUnlock ? `${item.costUnlockPoints} pts` : (item.missing?.[0] || 'Bloqueado')}</em>
+                    </button>
+                  );
+                })}
+              </div>
             </section>
           ) : null}
 
