@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: npm install && npm run build -w client
+    buildCommand: npm install --include=dev && npm run build -w client
     startCommand: npm run start -w server
     healthCheckPath: /api/health
     envVars:
