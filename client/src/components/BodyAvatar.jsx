@@ -686,10 +686,10 @@ function ShotBody({ gender, definition, volume, parts, heightCm, recoveryMuscles
 function Scene({ gender, definition, volume, parts, heightCm, recoveryMuscles, recoveryKey }) {
   return (
     <>
-      <ambientLight intensity={0.7} />
-      <hemisphereLight intensity={0.85} color="#f5f0e6" groundColor="#2a231b" />
-      <directionalLight position={[2.4, 4.5, 2.8]} intensity={1.55} castShadow />
-      <directionalLight position={[-2.2, 1.5, -1.2]} intensity={0.45} color="#a8b892" />
+      <ambientLight intensity={0.62} />
+      <hemisphereLight intensity={0.95} color="#fff1d6" groundColor="#3a4a38" />
+      <directionalLight position={[3.2, 4.8, 1.6]} intensity={1.7} color="#ffe2b0" castShadow />
+      <directionalLight position={[-2.4, 1.8, -1.4]} intensity={0.4} color="#8fb8c8" />
       <Suspense fallback={null}>
         <ShotBody
           key={gender || 'male'}
