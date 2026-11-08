@@ -1,5 +1,6 @@
 /** Catálogo curado — jutsus, naturezas, kekkei e bijuu com pré-requisitos. */
 import { JUTSU_LIBRARY } from './jutsuLibrary.js';
+import { JUTSU_LIBRARY_EXTRA } from './jutsuLibraryExtra.js';
 import {
   DOJUTSU_JUTSU,
   DOJUTSU_PATHS,
@@ -231,6 +232,8 @@ export const NINJA_CATALOG = [
 
   // —— Jutsus (biblioteca E–S, gate por natureza) ——
   ...JUTSU_LIBRARY,
+  // —— Extras canônicos (Dattebayo): elemento, dōjutsu, bijū, sennin, fusões ——
+  ...JUTSU_LIBRARY_EXTRA,
 
   // —— Fusões (Kekkei Genkai elementais) ——
   ...FUSION_KEKKEI,
