@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
+import { encodeSelfie } from '../lib/photoEncode.js';
 
 const STATS = [
   { id: 'ninjutsu', label: 'Ninjutsu' },
@@ -25,6 +26,8 @@ export function NinjaPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('available');
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const photoInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -65,6 +68,27 @@ export function NinjaPage() {
 
   function unlock(catalogId) {
     return run(() => api('/api/ninja/unlock', { method: 'POST', body: { catalogId } }));
+  }
+
+  async function onPickSelfie(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setGeneratingAvatar(true);
+    setError('');
+    try {
+      const encoded = await encodeSelfie(file);
+      const payload = await api('/api/ninja/avatar', {
+        method: 'POST',
+        body: encoded,
+      });
+      setData(payload);
+    } catch (err) {
+      setError(err.message || 'Não foi possível gerar o personagem.');
+    } finally {
+      setGeneratingAvatar(false);
+    }
   }
 
   const ninja = data?.ninja;
@@ -124,13 +148,40 @@ export function NinjaPage() {
             </p>
           </section>
 
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            hidden
+            onChange={onPickSelfie}
+          />
+
           <section className="ninja-stage">
-            <div className={`ninja-avatar rank-${ninja.rank}`} aria-hidden="true">
-              <div className="ninja-silhouette">
-                <span className="ninja-head" />
-                <span className="ninja-body" />
-                <span className="ninja-scarf" />
-              </div>
+            <div className={`ninja-avatar rank-${ninja.rank}${generatingAvatar ? ' is-generating' : ''}`}>
+              {ninja.avatarReady && ninja.avatarUrl ? (
+                <img
+                  className="ninja-avatar-img"
+                  src={`${ninja.avatarUrl}?t=${encodeURIComponent(ninja.avatarUpdatedAt || '')}`}
+                  alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
+                />
+              ) : (
+                <div className="ninja-avatar-empty">
+                  <p className="ninja-avatar-empty-title">Seu personagem</p>
+                  <p className="hint">
+                    Na primeira vez, envie uma foto sua. Usamos idade, altura e peso do Perfil
+                    pra criar um estudante da academia — roupa comum, sem bandana.
+                  </p>
+                  <button
+                    type="button"
+                    className="primary"
+                    disabled={generatingAvatar || saving}
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    {generatingAvatar ? 'Criando personagem…' : 'Enviar foto'}
+                  </button>
+                </div>
+              )}
               <p className="ninja-rank-badge">{ninja.rankLabel}</p>
             </div>
 
@@ -141,6 +192,19 @@ export function NinjaPage() {
               <StatBar label="Taijutsu" value={ninja.taijutsu} max={ninja.statMax} tone="tai" />
             </div>
           </section>
+
+          {ninja.avatarReady ? (
+            <p className="hint">
+              <button
+                type="button"
+                className="ghost ninja-avatar-retry"
+                disabled={generatingAvatar || saving}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {generatingAvatar ? 'Gerando de novo…' : 'Trocar foto / regenerar'}
+              </button>
+            </p>
+          ) : null}
 
           <p className="hint">
             Clã {ninja.clanName || '—'}

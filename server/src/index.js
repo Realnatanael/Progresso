@@ -50,7 +50,8 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '32kb' }));
+// Selfie em base64 pra geração do avatar ninja precisa de corpo maior.
+app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
 app.get('/api/health', (_req, res) => {

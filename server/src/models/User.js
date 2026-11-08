@@ -35,6 +35,9 @@ const ninjaSchema = new mongoose.Schema(
     waterDates: { type: [String], default: [] },
     perfectDates: { type: [String], default: [] },
     workoutPicks: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+    /** true depois da 1ª geração com Gemini */
+    avatarReady: { type: Boolean, default: false },
+    avatarUpdatedAt: { type: Date, default: null },
   },
   { _id: false },
 );
@@ -49,6 +52,9 @@ const userSchema = new mongoose.Schema(
     gender: { type: String, enum: ['male', 'female', 'other'], default: null },
     measures: { type: measuresSchema, default: () => ({}) },
     ninja: { type: ninjaSchema, default: () => ({}) },
+    /** PNG/JPEG gerado; select:false pra não ir em todo GET */
+    ninjaAvatarData: { type: Buffer, default: null, select: false },
+    ninjaAvatarMime: { type: String, default: null, select: false },
   },
   { timestamps: true },
 );
