@@ -6,6 +6,7 @@ import { CheckIn } from '../models/CheckIn.js';
 import { WeightEntry } from '../models/WeightEntry.js';
 import { computeScheduledStreak, isIsoDate, shiftDate } from '../lib/dates.js';
 import { activeDaySet, buildPlan } from '../lib/exercisePlan.js';
+import { buildMuscleRecovery, RECOVERY_LEVELS } from '../lib/muscles.js';
 
 const router = Router();
 
@@ -34,6 +35,23 @@ router.patch('/profile', async (req, res, next) => {
     user.heightCm = fields.value.heightCm;
     user.age = fields.value.age;
     user.gender = fields.value.gender;
+    await user.save();
+    res.json(await buildBody(user, date));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/measures', async (req, res, next) => {
+  try {
+    const date = req.body?.date;
+    if (!isIsoDate(date)) return res.status(400).json({ error: 'Data inválida.' });
+    const fields = readMeasures(req.body);
+    if (fields.error) return res.status(400).json({ error: fields.error });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    user.measures = { ...(user.measures?.toObject?.() || user.measures || {}), ...fields.value };
     await user.save();
     res.json(await buildBody(user, date));
   } catch (error) {
@@ -89,13 +107,24 @@ async function buildBody(userDoc, date) {
   const heightCm = user.heightCm ?? null;
   const bmi = latest && heightCm ? calcBmi(latest.kg, heightCm) : null;
   const avatar = await buildAvatarShape(habit, userId, date, bmi);
+  const recovery = await buildRecoveryState(habit, userId, date);
 
+  const m = user.measures || {};
   return {
     date,
     profile: {
       heightCm,
       age: user.age ?? null,
       gender: user.gender ?? null,
+      measures: {
+        armCm: m.armCm ?? null,
+        shoulderCm: m.shoulderCm ?? null,
+        forearmCm: m.forearmCm ?? null,
+        chestCm: m.chestCm ?? null,
+        thighCm: m.thighCm ?? null,
+        calfCm: m.calfCm ?? null,
+        hipsCm: m.hipsCm ?? null,
+      },
     },
     stats: {
       weightKg: latest?.kg ?? null,
@@ -103,8 +132,27 @@ async function buildBody(userDoc, date) {
       bmiLabel: bmiLabel(bmi),
     },
     avatar,
+    recovery,
     workout: habit ? await buildPlan(habit, userId, date) : null,
     weights: sorted,
+  };
+}
+
+async function buildRecoveryState(habit, userId, date) {
+  if (!habit) {
+    return { muscles: buildMuscleRecovery({ checkins: [], habit: null }), levels: RECOVERY_LEVELS };
+  }
+  const from = shiftDate(date, -10);
+  const checkins = await CheckIn.find({
+    habitId: habit._id,
+    userId,
+    date: { $gte: from, $lte: date },
+  })
+    .select('date muscles createdAt')
+    .lean();
+  return {
+    muscles: buildMuscleRecovery({ checkins, habit }),
+    levels: RECOVERY_LEVELS,
   };
 }
 
@@ -177,6 +225,36 @@ function readProfile(body) {
     return { error: 'Escolha o gênero.' };
   }
   return { value: { heightCm, age, gender } };
+}
+
+const MEASURE_FIELDS = [
+  { key: 'armCm', label: 'braço', min: 20, max: 55 },
+  { key: 'shoulderCm', label: 'ombro', min: 80, max: 160 },
+  { key: 'forearmCm', label: 'antebraço', min: 15, max: 45 },
+  { key: 'chestCm', label: 'peito', min: 70, max: 140 },
+  { key: 'thighCm', label: 'coxa', min: 35, max: 80 },
+  { key: 'calfCm', label: 'panturrilha', min: 22, max: 55 },
+  { key: 'hipsCm', label: 'quadril', min: 65, max: 140 },
+];
+
+function readMeasures(body) {
+  const value = {};
+  for (const field of MEASURE_FIELDS) {
+    const cm = parseMeasureCm(body?.[field.key], field.min, field.max);
+    if (cm === null) {
+      return { error: `Informe ${field.label} em cm, entre ${field.min} e ${field.max}.` };
+    }
+    value[field.key] = cm;
+  }
+  return { value };
+}
+
+function parseMeasureCm(raw, min, max) {
+  const text = String(raw ?? '').trim().replace(',', '.');
+  if (!text) return null;
+  const cm = Number(text);
+  if (!Number.isFinite(cm) || cm < min || cm > max) return null;
+  return Math.round(cm * 10) / 10;
 }
 
 function parseHeight(value) {

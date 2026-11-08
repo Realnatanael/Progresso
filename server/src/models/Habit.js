@@ -12,6 +12,7 @@ const habitSchema = new mongoose.Schema(
         weekday: { type: Number, required: true, min: 0, max: 6 },
         name: { type: String, required: true, trim: true, maxlength: 80 },
         position: { type: Number, default: 0 },
+        muscles: { type: [String], default: [] },
       }],
       default: [],
     },

@@ -637,16 +637,109 @@ a { color: var(--gold); }
   margin: 0 0 12px;
   padding: 0;
   display: grid;
+  gap: 12px;
+}
+
+.exercise-list li.exercise-row {
+  display: grid;
   gap: 8px;
 }
 
-.exercise-list li {
+.exercise-main {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.exercise-list span { flex: 1; }
+.exercise-main span { flex: 1; }
+
+.muscle-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.muscle-chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 7px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.muscle-chip[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--gold) 22%, transparent);
+  border-color: var(--gold);
+  color: var(--ink);
+}
+
+.recovery-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.recovery-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.recovery-legend-item.muted { opacity: 0.85; }
+
+.recovery-legend-item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+  display: inline-block;
+}
+
+.recovery-now {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.recovery-now li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+}
+
+.recovery-now strong { font-weight: 560; }
+
+.recovery-now span {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.recovery-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.recovery-dot.red { background: #e84a3c; color: #e84a3c; }
+.recovery-dot.yellow { background: #e2a23a; color: #e2a23a; }
+.recovery-dot.green { background: #4caf6a; color: #4caf6a; }
+.recovery-dot.blue { background: #4a8fe8; color: #4a8fe8; }
+
+.recovery-empty { margin: 0; }
 
 .exercise-add {
   display: flex;
@@ -885,6 +978,11 @@ a { color: var(--gold); }
 .profile-form {
   display: grid;
   gap: 12px;
+}
+
+.measures-form .field em.hint {
+  font-style: normal;
+  margin: 0;
 }
 
 .gender-picks {

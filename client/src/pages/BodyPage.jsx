@@ -5,7 +5,8 @@ import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { BodyAvatar } from '../components/BodyAvatar.jsx';
 import { formatKg, formatNumber, genderLabel } from '../format.js';
-import { PART_RANGES, USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
+import { USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
+import { MUSCLE_GROUPS, RECOVERY_LEVELS } from '../muscles.js';
 
 const DAY_PICKS = [
   { weekday: 1, short: 'Seg' },
@@ -26,11 +27,6 @@ export function BodyPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  /** Testes locais de circunferência (cm) → remodelam regiões do avatar. */
-  const [bicepsCm, setBicepsCm] = useState(USER_BASELINE.armCm);
-  const [shoulderCm, setShoulderCm] = useState(USER_BASELINE.shoulderCm);
-  const [forearmCm, setForearmCm] = useState(USER_BASELINE.forearmCm);
-  const [chestCm, setChestCm] = useState(USER_BASELINE.chestCm);
 
   useEffect(() => {
     let active = true;
@@ -118,6 +114,21 @@ export function BodyPage() {
     });
   }
 
+  function toggleMuscle(exercise, muscleId) {
+    if (!plan) return undefined;
+    const current = exercise.muscles || [];
+    const muscles = current.includes(muscleId)
+      ? current.filter((id) => id !== muscleId)
+      : [...current, muscleId];
+    return run(async () => {
+      await api(`/api/habits/${plan.id}/exercises/${exercise.id}`, {
+        method: 'PATCH',
+        body: { date, muscles },
+      });
+      return refreshBody();
+    });
+  }
+
   function toggleDone() {
     if (!plan) return undefined;
     return run(async () => {
@@ -129,14 +140,19 @@ export function BodyPage() {
   const stats = body?.stats;
   const profile = body?.profile;
   const hasProfile = Boolean(profile?.heightCm && profile?.age && profile?.gender);
-
+  const m = profile?.measures || {};
   const parts = partsFromMeasures({
-    armCm: bicepsCm,
-    shoulderCm,
-    forearmCm,
-    chestCm,
-    calfCm: USER_BASELINE.calfCm,
+    armCm: m.armCm ?? USER_BASELINE.armCm,
+    shoulderCm: m.shoulderCm ?? USER_BASELINE.shoulderCm,
+    forearmCm: m.forearmCm ?? USER_BASELINE.forearmCm,
+    chestCm: m.chestCm ?? USER_BASELINE.chestCm,
+    thighCm: m.thighCm ?? USER_BASELINE.thighCm,
+    calfCm: m.calfCm ?? USER_BASELINE.calfCm,
+    hipsCm: m.hipsCm ?? USER_BASELINE.hipsCm,
   });
+  const todayPlan = plan?.days.find((day) => day.today);
+  const recoveryMuscles = body?.recovery?.muscles || [];
+  const activeRecovery = recoveryMuscles.filter((item) => item.level);
 
   return (
     <main className="app with-nav app-wide">
@@ -170,6 +186,7 @@ export function BodyPage() {
               volume={body?.avatar?.volume ?? 0.15}
               parts={parts}
               heightCm={profile?.heightCm || USER_BASELINE.heightCm}
+              recoveryMuscles={recoveryMuscles}
               label={body?.avatar?.label}
             >
               <aside className="body-hud">
@@ -205,71 +222,32 @@ export function BodyPage() {
               </aside>
             </BodyAvatar>
 
-            <div className="part-tests">
-              <label className="part-test">
-                <span className="part-test-head">
-                  <strong>Braço</strong>
-                  <em>{formatNumber(bicepsCm)} cm · {Math.round(parts.arms * 100)}%</em>
+            <div className="recovery-legend" aria-label="Recuperação muscular">
+              {RECOVERY_LEVELS.map((level) => (
+                <span key={level.id} className="recovery-legend-item">
+                  <i style={{ background: level.color }} />
+                  {level.label}
                 </span>
-                <input
-                  type="range"
-                  min={PART_RANGES.arms.lean}
-                  max={PART_RANGES.arms.goal}
-                  step={0.5}
-                  value={bicepsCm}
-                  onChange={(event) => setBicepsCm(Number(event.target.value))}
-                />
-                <span className="hint">Base {USER_BASELINE.armCm} → teto ~{PART_RANGES.arms.goal} cm</span>
-              </label>
-
-              <label className="part-test">
-                <span className="part-test-head">
-                  <strong>Ombro</strong>
-                  <em>{formatNumber(shoulderCm)} cm · {Math.round(parts.shoulders * 100)}%</em>
-                </span>
-                <input
-                  type="range"
-                  min={PART_RANGES.shoulders.lean}
-                  max={PART_RANGES.shoulders.goal}
-                  step={0.5}
-                  value={shoulderCm}
-                  onChange={(event) => setShoulderCm(Number(event.target.value))}
-                />
-                <span className="hint">Base ~{USER_BASELINE.shoulderCm} → teto ~{PART_RANGES.shoulders.goal} cm</span>
-              </label>
-
-              <label className="part-test">
-                <span className="part-test-head">
-                  <strong>Antebraço</strong>
-                  <em>{formatNumber(forearmCm)} cm · {Math.round(parts.forearms * 100)}%</em>
-                </span>
-                <input
-                  type="range"
-                  min={PART_RANGES.forearms.lean}
-                  max={PART_RANGES.forearms.goal}
-                  step={0.5}
-                  value={forearmCm}
-                  onChange={(event) => setForearmCm(Number(event.target.value))}
-                />
-                <span className="hint">Base {USER_BASELINE.forearmCm} → teto ~{PART_RANGES.forearms.goal} cm</span>
-              </label>
-
-              <label className="part-test">
-                <span className="part-test-head">
-                  <strong>Peito</strong>
-                  <em>{formatNumber(chestCm)} cm · {Math.round(parts.chest * 100)}%</em>
-                </span>
-                <input
-                  type="range"
-                  min={PART_RANGES.chest.lean}
-                  max={PART_RANGES.chest.goal}
-                  step={0.5}
-                  value={chestCm}
-                  onChange={(event) => setChestCm(Number(event.target.value))}
-                />
-                <span className="hint">Base {USER_BASELINE.chestCm} → teto ~{PART_RANGES.chest.goal} cm · placa frontal + fenda</span>
-              </label>
+              ))}
+              <span className="recovery-legend-item muted">Sem brilho = pronto</span>
             </div>
+            {activeRecovery.length ? (
+              <ul className="recovery-now">
+                {activeRecovery.map((item) => (
+                  <li key={item.id}>
+                    <i className={`recovery-dot ${item.level}`} />
+                    <strong>{item.label}</strong>
+                    <span>
+                      {item.hoursLeft > 0
+                        ? `~${formatHoursLeft(item.hoursLeft)}`
+                        : 'liberando'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="hint recovery-empty">Nenhum músculo em recuperação</p>
+            )}
           </section>
 
           {plan ? (
@@ -280,80 +258,100 @@ export function BodyPage() {
                   {editing ? 'Pronto' : 'Editar plano'}
                 </button>
               </div>
-              <p className={plan.doneToday ? 'summary done' : 'summary'}>
-                {plan.restToday
-                  ? 'Hoje é descanso'
-                  : plan.doneToday ? 'Treino de hoje feito' : 'Dia de treino'}
-              </p>
-              {plan.restToday ? null : (
-                <button className="primary mark-workout" type="button" onClick={toggleDone} disabled={saving}>
-                  {plan.doneToday ? 'Desmarcar treino' : 'Marcar treino de hoje'}
-                </button>
-              )}
 
               {editing ? (
-                <div className="day-picks" role="group" aria-label="Dias de treino">
-                  {DAY_PICKS.map((day) => (
-                    <button
-                      key={day.weekday}
-                      type="button"
-                      aria-pressed={plan.activeDays.includes(day.weekday)}
-                      disabled={saving}
-                      onClick={() => toggleDay(day.weekday)}
-                    >
-                      {day.short}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="day-picks" role="group" aria-label="Dias de treino">
+                    {DAY_PICKS.map((day) => (
+                      <button
+                        key={day.weekday}
+                        type="button"
+                        aria-pressed={plan.activeDays.includes(day.weekday)}
+                        disabled={saving}
+                        onClick={() => toggleDay(day.weekday)}
+                      >
+                        {day.short}
+                      </button>
+                    ))}
+                  </div>
+                  <ul className="plan-read">
+                    {plan.days.map((day) => (
+                      <li key={day.weekday} className={day.today ? 'today' : ''}>
+                        <div className="plan-read-line">
+                          <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
+                          <span>
+                            {day.exercises.length
+                              ? day.exercises.map((item) => item.name).join(' · ')
+                              : 'Sem exercícios'}
+                          </span>
+                        </div>
+                        <div className="plan-edit">
+                          {day.exercises.length ? (
+                            <ul className="exercise-list">
+                              {day.exercises.map((exercise, index) => (
+                                <li key={exercise.id} className="exercise-row">
+                                  <div className="exercise-main">
+                                    <span>{exercise.name}</span>
+                                    <button type="button" className="text" aria-label={`Subir ${exercise.name}`} disabled={saving || index === 0} onClick={() => moveExercise(exercise.id, 'up')}>↑</button>
+                                    <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
+                                    <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
+                                  </div>
+                                  <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
+                                    {MUSCLE_GROUPS.map((muscle) => {
+                                      const on = (exercise.muscles || []).includes(muscle.id);
+                                      return (
+                                        <button
+                                          key={muscle.id}
+                                          type="button"
+                                          className="muscle-chip"
+                                          aria-pressed={on}
+                                          disabled={saving}
+                                          onClick={() => toggleMuscle(exercise, muscle.id)}
+                                        >
+                                          {muscle.label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                          <form className="exercise-add" onSubmit={(event) => addExercise(event, day.weekday)}>
+                            <label className="sr" htmlFor={`ex-${day.weekday}`}>Exercício de {day.name}</label>
+                            <input
+                              id={`ex-${day.weekday}`}
+                              maxLength={80}
+                              placeholder="Novo exercício"
+                              value={drafts[day.weekday] || ''}
+                              onChange={(event) => setDrafts((current) => ({ ...current, [day.weekday]: event.target.value }))}
+                            />
+                            <button className="primary" type="submit" disabled={saving || !(drafts[day.weekday] || '').trim()}>
+                              Adicionar
+                            </button>
+                          </form>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : plan.restToday || !todayPlan ? (
+                <p className="summary">Hoje é descanso</p>
               ) : (
-                <p className="hint day-summary">
-                  {DAY_PICKS.filter((day) => plan.activeDays.includes(day.weekday)).map((day) => day.short).join(' · ') || 'Nenhum dia ativo'}
-                </p>
+                <>
+                  <p className={plan.doneToday ? 'summary done' : 'summary'}>
+                    {plan.doneToday ? 'Treino de hoje feito' : `Hoje · ${todayPlan.name}`}
+                  </p>
+                  <p className="hint">
+                    {todayPlan.exercises.length
+                      ? todayPlan.exercises.map((item) => item.name).join(' · ')
+                      : 'Sem exercícios neste dia'}
+                  </p>
+                  <button className="primary mark-workout" type="button" onClick={toggleDone} disabled={saving}>
+                    {plan.doneToday ? 'Desmarcar treino' : 'Marcar treino de hoje'}
+                  </button>
+                </>
               )}
-
-              <ul className="plan-read">
-                {plan.days.map((day) => (
-                  <li key={day.weekday} className={day.today ? 'today' : ''}>
-                    <div className="plan-read-line">
-                      <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
-                      <span>
-                        {day.exercises.length
-                          ? day.exercises.map((item) => item.name).join(' · ')
-                          : 'Sem exercícios'}
-                      </span>
-                    </div>
-                    {editing ? (
-                      <div className="plan-edit">
-                        {day.exercises.length ? (
-                          <ul className="exercise-list">
-                            {day.exercises.map((exercise, index) => (
-                              <li key={exercise.id}>
-                                <span>{exercise.name}</span>
-                                <button type="button" className="text" aria-label={`Subir ${exercise.name}`} disabled={saving || index === 0} onClick={() => moveExercise(exercise.id, 'up')}>↑</button>
-                                <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
-                                <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        <form className="exercise-add" onSubmit={(event) => addExercise(event, day.weekday)}>
-                          <label className="sr" htmlFor={`ex-${day.weekday}`}>Exercício de {day.name}</label>
-                          <input
-                            id={`ex-${day.weekday}`}
-                            maxLength={80}
-                            placeholder="Novo exercício"
-                            value={drafts[day.weekday] || ''}
-                            onChange={(event) => setDrafts((current) => ({ ...current, [day.weekday]: event.target.value }))}
-                          />
-                          <button className="primary" type="submit" disabled={saving || !(drafts[day.weekday] || '').trim()}>
-                            Adicionar
-                          </button>
-                        </form>
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
             </section>
           ) : (
             <p className="hint">
@@ -366,6 +364,15 @@ export function BodyPage() {
       <AppNav />
     </main>
   );
+}
+
+function formatHoursLeft(hours) {
+  if (hours >= 24) {
+    const days = Math.round(hours / 24);
+    return days === 1 ? '1 dia' : `${days} dias`;
+  }
+  const rounded = Math.max(1, Math.round(hours));
+  return rounded === 1 ? '1 h' : `${rounded} h`;
 }
 
 function GenderIcon({ gender }) {

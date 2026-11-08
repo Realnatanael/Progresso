@@ -5,6 +5,8 @@ const checkInSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     habitId: { type: mongoose.Schema.Types.ObjectId, ref: 'Habit', required: true },
     date: { type: String, required: true },
+    /** Snapshot dos músculos do treino no momento do check-in. */
+    muscles: { type: [String], default: [] },
   },
   { timestamps: true },
 );

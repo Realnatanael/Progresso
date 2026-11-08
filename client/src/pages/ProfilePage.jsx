@@ -4,6 +4,39 @@ import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
 import { formatKg, formatNumber, formatWeightDate, GENDERS } from '../format.js';
+import { PART_RANGES, PHYSIQUE_STAGES, USER_BASELINE } from '../bodyMeasures.js';
+
+const MEASURE_FIELDS = [
+  { key: 'armCm', label: 'Braço', range: PART_RANGES.arms, stageKey: 'armCm' },
+  { key: 'shoulderCm', label: 'Ombro', range: PART_RANGES.shoulders, stageKey: 'shoulderCm' },
+  { key: 'forearmCm', label: 'Antebraço', range: PART_RANGES.forearms, stageKey: 'forearmCm' },
+  { key: 'chestCm', label: 'Peito', range: PART_RANGES.chest, stageKey: 'chestCm' },
+  { key: 'thighCm', label: 'Coxa', range: PART_RANGES.thighs, stageKey: 'thighCm' },
+  { key: 'calfCm', label: 'Panturrilha', range: PART_RANGES.calves, stageKey: 'calfCm' },
+  { key: 'hipsCm', label: 'Glúteo / quadril', range: PART_RANGES.hips, stageKey: 'hipsCm' },
+];
+
+function emptyMeasures() {
+  return {
+    armCm: String(USER_BASELINE.armCm),
+    shoulderCm: String(USER_BASELINE.shoulderCm),
+    forearmCm: String(USER_BASELINE.forearmCm),
+    chestCm: String(USER_BASELINE.chestCm),
+    thighCm: String(USER_BASELINE.thighCm),
+    calfCm: String(USER_BASELINE.calfCm),
+    hipsCm: String(USER_BASELINE.hipsCm),
+  };
+}
+
+function measuresFromProfile(measures) {
+  const base = emptyMeasures();
+  if (!measures) return base;
+  for (const field of MEASURE_FIELDS) {
+    const value = measures[field.key];
+    if (value != null) base[field.key] = String(value).replace('.', ',');
+  }
+  return base;
+}
 
 export function ProfilePage() {
   const { user, logout } = useAuth();
@@ -13,6 +46,7 @@ export function ProfilePage() {
   const [heightCm, setHeightCm] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('male');
+  const [measures, setMeasures] = useState(emptyMeasures);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -42,6 +76,7 @@ export function ProfilePage() {
     setHeightCm(data.profile.heightCm != null ? String(data.profile.heightCm) : '');
     setAge(data.profile.age != null ? String(data.profile.age) : '');
     setGender(data.profile.gender || 'male');
+    setMeasures(measuresFromProfile(data.profile.measures));
   }
 
   async function run(action) {
@@ -65,6 +100,26 @@ export function ProfilePage() {
       method: 'PATCH',
       body: { date, heightCm, age: Number(age), gender },
     }));
+  }
+
+  function saveMeasures(event) {
+    event.preventDefault();
+    const bodyPayload = { date };
+    for (const field of MEASURE_FIELDS) {
+      bodyPayload[field.key] = measures[field.key];
+    }
+    return run(() => api('/api/body/measures', {
+      method: 'PATCH',
+      body: bodyPayload,
+    }));
+  }
+
+  function fillStage3Measures() {
+    const next = {};
+    for (const field of MEASURE_FIELDS) {
+      next[field.key] = String(PHYSIQUE_STAGES[3][field.stageKey]);
+    }
+    setMeasures(next);
   }
 
   function saveWeight(event) {
@@ -96,8 +151,8 @@ export function ProfilePage() {
             <p className="date">Perfil</p>
             <h1>Olá, {firstName}</h1>
             <p className="summary">
-              Edite altura, idade, gênero e peso. O avatar em{' '}
-              <Link to="/corpo">Corpo</Link> acompanha esses dados.
+              Dados pessoais, peso e medidas. O avatar em{' '}
+              <Link to="/corpo">Corpo</Link> acompanha o que você salvar aqui.
             </p>
           </section>
 
@@ -143,6 +198,41 @@ export function ProfilePage() {
               ) : null}
               <button className="primary" type="submit" disabled={saving || !heightCm.trim() || !age.trim()}>
                 Salvar dados
+              </button>
+            </form>
+          </section>
+
+          <section className="plan-block">
+            <div className="section-head">
+              <h2>Medidas</h2>
+              <button className="text" type="button" onClick={fillStage3Measures} disabled={saving}>
+                Preencher estágio 3
+              </button>
+            </div>
+            <p className="hint">
+              Circunferências em cm. O Corpo usa esses valores no avatar (volume leve).
+            </p>
+            <form className="profile-form measures-form" onSubmit={saveMeasures}>
+              {MEASURE_FIELDS.map((field) => (
+                <label key={field.key} className="field">
+                  <span>{field.label} (cm)</span>
+                  <input
+                    inputMode="decimal"
+                    value={measures[field.key]}
+                    onChange={(event) => setMeasures((current) => ({
+                      ...current,
+                      [field.key]: event.target.value,
+                    }))}
+                    placeholder={String(USER_BASELINE[field.key])}
+                    required
+                  />
+                  <em className="hint">
+                    Est.1 {PHYSIQUE_STAGES[1][field.stageKey]} → est.3 {field.range.goal} cm
+                  </em>
+                </label>
+              ))}
+              <button className="primary" type="submit" disabled={saving}>
+                Salvar medidas
               </button>
             </form>
           </section>

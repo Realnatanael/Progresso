@@ -5,7 +5,8 @@ import { CheckIn } from '../models/CheckIn.js';
 import { WaterEntry } from '../models/WaterEntry.js';
 import { requireAuth } from '../middleware/auth.js';
 import { computeScheduledStreak, computeStreak, isIsoDate, lastDays, weekdayOf } from '../lib/dates.js';
-import { activeDaySet, buildPlan, normalizeDays, orderedExercises } from '../lib/exercisePlan.js';
+import { activeDaySet, buildPlan, musclesForWeekday, normalizeDays, orderedExercises } from '../lib/exercisePlan.js';
+import { normalizeMuscles } from '../lib/muscles.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -85,8 +86,14 @@ router.post('/:id/toggle', async (req, res, next) => {
     }
 
     const existing = await CheckIn.findOne({ habitId: habit._id, userId: req.user._id, date });
-    if (existing) await existing.deleteOne();
-    else await CheckIn.create({ habitId: habit._id, userId: req.user._id, date });
+    if (existing) {
+      await existing.deleteOne();
+    } else {
+      const muscles = (habit.kind || 'check') === 'exercise'
+        ? musclesForWeekday(habit, weekdayOf(date))
+        : [];
+      await CheckIn.create({ habitId: habit._id, userId: req.user._id, date, muscles });
+    }
 
     res.json(await buildBoard(req.user._id, date));
   } catch (error) {
@@ -150,7 +157,8 @@ router.post('/:id/exercises', async (req, res, next) => {
     if (sameDay.length >= 20) {
       return res.status(400).json({ error: 'Limite de 20 exercícios neste dia.' });
     }
-    habit.exercises.push({ weekday, name, position: sameDay.length });
+    const muscles = normalizeMuscles(req.body?.muscles);
+    habit.exercises.push({ weekday, name, position: sameDay.length, muscles });
     await habit.save();
     res.status(201).json(await buildPlan(habit, req.user._id, date));
   } catch (error) {
@@ -180,8 +188,10 @@ router.patch('/:id/exercises/:exerciseId', async (req, res, next) => {
         reordered.splice(swapWith, 0, moved);
         reordered.forEach((entry, position) => { entry.position = position; });
       }
+    } else if (req.body?.muscles !== undefined) {
+      item.muscles = normalizeMuscles(req.body.muscles);
     } else {
-      return res.status(400).json({ error: 'Não foi possível reordenar.' });
+      return res.status(400).json({ error: 'Não foi possível atualizar o exercício.' });
     }
 
     await habit.save();
