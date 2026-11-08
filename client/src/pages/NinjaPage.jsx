@@ -19,6 +19,22 @@ const KIND_LABEL = {
   bijuu: 'Bijuu',
 };
 
+const NATURE_SHORT = {
+  fire: 'Katon',
+  water: 'Suiton',
+  wind: 'Fuuton',
+  earth: 'Doton',
+  lightning: 'Raiton',
+  yin: 'Inton',
+  yang: 'Yōton',
+  yin_yang: 'Onmyōton',
+  crystal: 'Shōton',
+  typhoon: 'Taiton',
+  steel: 'Kōton',
+  darkness: 'Meiton',
+  speed: 'Jinton',
+};
+
 export function NinjaPage() {
   const { logout } = useAuth();
   const date = todayISO();
@@ -458,13 +474,17 @@ export function NinjaPage() {
 
           <section className="ninja-card">
             <div className="section-head">
-              <h2>Jutsus</h2>
+              <h2>Jutsus & técnicas</h2>
               <span className="hint">{ninja.unlockPoints} pts</span>
             </div>
             {ninja.needsFirstNature ? (
-              <p className="hint">Escolha a natureza acima; depois você gasta pts em jutsus básicos.</p>
+              <p className="hint">Escolha a natureza acima; jutsus elementais só da sua afinidade.</p>
             ) : (
               <>
+                <p className="hint">
+                  Ranks E→S. Elementais exigem a natureza (Raiton não aprende Katon).
+                  Universais (clone, taijutsu, cura…) liberam pra todos.
+                </p>
                 <div className="ninja-filters">
                   <button
                     type="button"
@@ -540,14 +560,17 @@ export function NinjaPage() {
 }
 
 function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {
+  const natureTag = (item.requiresNatures || [])
+    .map((id) => NATURE_SHORT[id] || id)
+    .join('+') || 'Universal';
   return (
     <li className={item.canUnlock ? 'can' : 'locked'}>
       <div>
         <strong>{item.name}</strong>
         <span className="ninja-meta">
-          {KIND_LABEL[item.kind] || item.kind}
+          <span className={`jutsu-tier tier-${item.tier}`}>{item.tier}</span>
           {' · '}
-          {item.tier}
+          {natureTag}
           {' · '}
           {item.costUnlockPoints} pts
           {item.rankMin && item.rankMin !== 'academy' ? ` · ${item.rankMin}` : ''}
