@@ -27,7 +27,8 @@ export function NinjaPage() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('available');
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
-  const photoInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -94,6 +95,7 @@ export function NinjaPage() {
   const ninja = data?.ninja;
   const catalog = data?.catalog || [];
   const pending = ninja?.pendingStatPick?.date === date;
+  const unlocked = Boolean(ninja?.avatarReady);
 
   const firstNatures = useMemo(
     () => catalog.filter((item) => item.kind === 'nature' && item.firstNatureOnly && !item.owned),
@@ -131,7 +133,63 @@ export function NinjaPage() {
       {loading ? <p className="screen-status">Abrindo o caminho ninja…</p> : null}
       {error ? <p className="alert" role="alert">{error}</p> : null}
 
-      {!loading && ninja ? (
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={onPickSelfie}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        hidden
+        onChange={onPickSelfie}
+      />
+
+      {!loading && ninja && !unlocked ? (
+        <>
+          <section className="today">
+            <p className="date">Ninja</p>
+            <h1>Crie seu personagem</h1>
+            <p className="summary">
+              Envie uma foto pra liberar o painel ninja. Galeria ou câmera — tanto faz.
+            </p>
+          </section>
+
+          <section className={`ninja-avatar ninja-avatar-gate${generatingAvatar ? ' is-generating' : ''}`}>
+            <div className="ninja-avatar-empty">
+              <p className="ninja-avatar-empty-title">Portão da vila</p>
+              <p className="hint">
+                Usamos idade, altura e peso do Perfil. O personagem fica como estudante da academia:
+                roupa comum, sem bandana.
+              </p>
+              <div className="ninja-photo-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={generatingAvatar || saving}
+                  onClick={() => galleryInputRef.current?.click()}
+                >
+                  {generatingAvatar ? 'Criando personagem…' : 'Escolher da galeria'}
+                </button>
+                <button
+                  type="button"
+                  className="ghost ninja-photo-secondary"
+                  disabled={generatingAvatar || saving}
+                  onClick={() => cameraInputRef.current?.click()}
+                >
+                  Tirar foto
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {!loading && ninja && unlocked ? (
         <>
           <section className="today">
             <p className="date">Ninja</p>
@@ -148,40 +206,13 @@ export function NinjaPage() {
             </p>
           </section>
 
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            hidden
-            onChange={onPickSelfie}
-          />
-
           <section className="ninja-stage">
             <div className={`ninja-avatar rank-${ninja.rank}${generatingAvatar ? ' is-generating' : ''}`}>
-              {ninja.avatarReady && ninja.avatarUrl ? (
-                <img
-                  className="ninja-avatar-img"
-                  src={`${ninja.avatarUrl}?t=${encodeURIComponent(ninja.avatarUpdatedAt || '')}`}
-                  alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
-                />
-              ) : (
-                <div className="ninja-avatar-empty">
-                  <p className="ninja-avatar-empty-title">Seu personagem</p>
-                  <p className="hint">
-                    Na primeira vez, envie uma foto sua. Usamos idade, altura e peso do Perfil
-                    pra criar um estudante da academia — roupa comum, sem bandana.
-                  </p>
-                  <button
-                    type="button"
-                    className="primary"
-                    disabled={generatingAvatar || saving}
-                    onClick={() => photoInputRef.current?.click()}
-                  >
-                    {generatingAvatar ? 'Criando personagem…' : 'Enviar foto'}
-                  </button>
-                </div>
-              )}
+              <img
+                className="ninja-avatar-img"
+                src={`${ninja.avatarUrl}?t=${encodeURIComponent(ninja.avatarUpdatedAt || '')}`}
+                alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
+              />
               <p className="ninja-rank-badge">{ninja.rankLabel}</p>
             </div>
 
@@ -193,18 +224,25 @@ export function NinjaPage() {
             </div>
           </section>
 
-          {ninja.avatarReady ? (
-            <p className="hint">
-              <button
-                type="button"
-                className="ghost ninja-avatar-retry"
-                disabled={generatingAvatar || saving}
-                onClick={() => photoInputRef.current?.click()}
-              >
-                {generatingAvatar ? 'Gerando de novo…' : 'Trocar foto / regenerar'}
-              </button>
-            </p>
-          ) : null}
+          <p className="hint">
+            <button
+              type="button"
+              className="ghost ninja-avatar-retry"
+              disabled={generatingAvatar || saving}
+              onClick={() => galleryInputRef.current?.click()}
+            >
+              {generatingAvatar ? 'Gerando de novo…' : 'Trocar foto (galeria)'}
+            </button>
+            {' · '}
+            <button
+              type="button"
+              className="ghost ninja-avatar-retry"
+              disabled={generatingAvatar || saving}
+              onClick={() => cameraInputRef.current?.click()}
+            >
+              Tirar outra foto
+            </button>
+          </p>
 
           <p className="hint">
             Clã {ninja.clanName || '—'}

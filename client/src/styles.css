@@ -1127,15 +1127,21 @@ a { color: var(--gold); }
 
 .ninja-avatar {
   position: relative;
-  min-height: 280px;
+  min-height: 340px;
   border-radius: 22px;
   background:
-    linear-gradient(180deg, rgba(10, 14, 18, 0.22) 0%, rgba(8, 10, 14, 0.48) 100%),
-    url("/images/konoha-stage.jpg") center 42% / cover no-repeat;
+    linear-gradient(180deg, rgba(12, 18, 24, 0.18) 0%, transparent 38%, rgba(8, 10, 14, 0.2) 100%),
+    url("/images/konoha-gate-stage.jpg") center 62% / cover no-repeat;
   border: 1px solid var(--line);
   display: grid;
-  place-items: center;
+  place-items: end center;
   overflow: hidden;
+}
+
+.ninja-avatar-gate {
+  margin-top: 8px;
+  place-items: center;
+  min-height: min(62vh, 420px);
 }
 
 .ninja-avatar.is-generating::after {
@@ -1144,26 +1150,33 @@ a { color: var(--gold); }
   inset: 0;
   background: rgba(8, 10, 14, 0.35);
   pointer-events: none;
+  z-index: 2;
 }
 
 .ninja-avatar-img {
-  width: min(100%, 220px);
-  height: auto;
-  max-height: 300px;
-  object-fit: contain;
-  filter: drop-shadow(0 12px 22px rgba(0, 0, 0, 0.45));
+  position: relative;
   z-index: 1;
+  width: min(78%, 250px);
+  height: auto;
+  max-height: 92%;
+  object-fit: contain;
+  object-position: bottom center;
+  margin-bottom: 2%;
+  filter: drop-shadow(0 14px 20px rgba(0, 0, 0, 0.5));
 }
 
 .ninja-avatar-empty {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 10px;
+  gap: 12px;
   justify-items: center;
   text-align: center;
-  padding: 28px 18px 40px;
-  max-width: 280px;
+  padding: 28px 18px;
+  max-width: 300px;
+  border-radius: 18px;
+  background: rgba(8, 10, 14, 0.55);
+  backdrop-filter: blur(6px);
 }
 
 .ninja-avatar-empty-title {
@@ -1175,8 +1188,21 @@ a { color: var(--gold); }
 }
 
 .ninja-avatar-empty .hint {
-  color: rgba(245, 240, 232, 0.86);
+  margin: 0;
+  color: rgba(245, 240, 232, 0.9);
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+.ninja-photo-actions {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.ninja-photo-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(243, 230, 196, 0.35);
+  color: #f3e6c4;
 }
 
 .ninja-avatar-retry {
@@ -1225,12 +1251,18 @@ a { color: var(--gold); }
 
 .ninja-rank-badge {
   position: absolute;
-  bottom: 12px;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
   margin: 0;
-  font-size: 0.85rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
   color: #f3e6c4;
   letter-spacing: 0.04em;
   text-shadow: 0 1px 10px rgba(0, 0, 0, 0.65);
+  background: rgba(8, 10, 14, 0.45);
 }
 
 .ninja-stats { display: grid; gap: 10px; }
