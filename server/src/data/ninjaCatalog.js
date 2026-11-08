@@ -1,5 +1,11 @@
 /** Catálogo curado — jutsus, naturezas, kekkei e bijuu com pré-requisitos. */
 import { JUTSU_LIBRARY } from './jutsuLibrary.js';
+import {
+  DOJUTSU_JUTSU,
+  DOJUTSU_PATHS,
+  FUSION_KEKKEI,
+  SENNIN_PATHS,
+} from './pathsCatalog.js';
 
 export const RANKS = [
   { id: 'academy', label: 'Academia', order: 0 },
@@ -226,43 +232,15 @@ export const NINJA_CATALOG = [
   // —— Jutsus (biblioteca E–S, gate por natureza) ——
   ...JUTSU_LIBRARY,
 
-  // —— Kekkei (chuunin+) e jutsus dependentes ——
-  {
-    id: 'kekkei-sharingan',
-    kind: 'kekkei',
-    name: 'Sharingan',
-    tier: 'B',
-    rankMin: 'chuunin',
-    costUnlockPoints: 20,
-    requires: { chakra: 120, ninjutsu: 35, genjutsu: 40, taijutsu: 20 },
-    requiresIds: [],
-    requiresNatures: [],
-    blurb: 'Olho que copia e prevê movimentos.',
-  },
-  {
-    id: 'bijuu-eco-kurama',
-    kind: 'bijuu',
-    name: 'Eco da Raposa de Nove Caudas',
-    tier: 'S',
-    rankMin: 'jounin',
-    costUnlockPoints: 50,
-    requires: { chakra: 250, ninjutsu: 70, genjutsu: 30, taijutsu: 40 },
-    requiresIds: [],
-    requiresNatures: [],
-    blurb: 'Fragmento de poder — ainda longe.',
-  },
-  {
-    id: 'bijuu-eco-shukaku',
-    kind: 'bijuu',
-    name: 'Eco do Shukaku',
-    tier: 'S',
-    rankMin: 'jounin',
-    costUnlockPoints: 45,
-    requires: { chakra: 230, ninjutsu: 55, genjutsu: 40 },
-    requiresIds: [],
-    requiresNatures: ['wind'],
-    blurb: 'Areia e vento do tanuki de uma cauda.',
-  },
+  // —— Fusões (Kekkei Genkai elementais) ——
+  ...FUSION_KEKKEI,
+
+  // —— Dōjutsu (olhos em estágios) + jutsus oculares ——
+  ...DOJUTSU_PATHS,
+  ...DOJUTSU_JUTSU,
+
+  // —— Caminhos Sennin ——
+  ...SENNIN_PATHS,
 ];
 
 export function catalogById(id) {
@@ -290,6 +268,8 @@ export function defaultNinjaState() {
     learnedJutsuIds: [],
     unlockedKekkeiIds: [],
     unlockedBijuuIds: [],
+    jinchuuriki: null,
+    senninPath: null,
     pendingStatPick: null,
     needsFirstNature: true,
     waterDates: [],

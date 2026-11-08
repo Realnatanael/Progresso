@@ -12,6 +12,12 @@ import {
   defaultNinjaState,
   surnameFromFullName,
 } from '../data/ninjaCatalog.js';
+import {
+  BIJUU_POOL,
+  JINCHUURIKI_COST,
+  SENNIN_PATHS,
+} from '../data/pathsCatalog.js';
+import { buildStoryProgress } from '../data/storyRoadmap.js';
 
 export function ensureNinja(user) {
   if (!user.ninja || typeof user.ninja !== 'object') {
@@ -25,6 +31,8 @@ export function ensureNinja(user) {
   if (!Array.isArray(n.waterDates)) n.waterDates = [];
   if (!Array.isArray(n.perfectDates)) n.perfectDates = [];
   if (!n.workoutPicks || typeof n.workoutPicks !== 'object') n.workoutPicks = {};
+  if (n.jinchuuriki === undefined) n.jinchuuriki = null;
+  if (n.senninPath === undefined) n.senninPath = null;
 
   // Clã = sobrenome da pessoa
   const surname = surnameFromFullName(user.name);
@@ -39,6 +47,9 @@ export function ensureNinja(user) {
 
 export function publicNinja(user) {
   const n = ensureNinja(user);
+  const sennin = n.senninPath
+    ? SENNIN_PATHS.find((p) => p.id === n.senninPath) || null
+    : null;
   return {
     clanName: n.clanName || '',
     displayName: user.name || '',
@@ -60,7 +71,13 @@ export function publicNinja(user) {
     kekkeiLabels: (n.unlockedKekkeiIds || [])
       .map((id) => catalogById(id)?.name)
       .filter(Boolean),
+    jinchuuriki: n.jinchuuriki || null,
+    senninPath: n.senninPath || null,
+    sennin: sennin
+      ? { id: sennin.id, name: sennin.name, buff: sennin.buff, limit: sennin.limit }
+      : null,
     pendingStatPick: n.pendingStatPick || null,
+    story: buildStoryProgress(n, catalogById),
     nextRank: nextRankInfo(n),
     avatarReady: Boolean(n.avatarReady),
     avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
@@ -68,6 +85,8 @@ export function publicNinja(user) {
     affinityRollCost: AFFINITY_ROLL_COST,
     canAffinityRoll: (n.natures || []).length === 0
       && (n.unlockPoints || 0) >= AFFINITY_ROLL_COST,
+    jinchuurikiCost: JINCHUURIKI_COST,
+    canJinchuurikiRoll: canRollJinchuuriki(n).ok === true,
   };
 }
 
@@ -198,13 +217,51 @@ export function pickStat(n, date, stat) {
 }
 
 function ownedIds(n) {
-  return new Set([
+  const ids = [
     ...(n.learnedJutsuIds || []),
     ...(n.unlockedKekkeiIds || []),
     ...(n.unlockedBijuuIds || []),
     ...(n.natures || []).map((nat) => `nature-${nat}`),
     ...(n.natures || []).map((nat) => `nature2-${nat}`),
-  ]);
+  ];
+  if (n.senninPath) ids.push(n.senninPath);
+  if (n.jinchuuriki?.bijuuId) ids.push(`bijuu-${n.jinchuuriki.bijuuId}`);
+  return new Set(ids);
+}
+
+function canRollJinchuuriki(n) {
+  if (n.jinchuuriki?.bijuuId) return { ok: false, error: 'Você já é jinchūriki.' };
+  if (n.senninPath) return { ok: false, error: 'Quem já é sennin não sela bijū.' };
+  if ((RANK_ORDER[n.rank] ?? 0) < (RANK_ORDER.jounin ?? 3)) {
+    return { ok: false, error: 'Só Jounin pode selar uma bijū.' };
+  }
+  if ((n.chakra || 0) < 160) return { ok: false, error: 'Precisa de chakra 160.' };
+  if ((n.unlockPoints || 0) < JINCHUURIKI_COST) {
+    return { ok: false, error: `Precisa de ${JINCHUURIKI_COST} pts.` };
+  }
+  return { ok: true };
+}
+
+/** Sela uma bijū aleatória — buffs e limitações vêm junto. */
+export function rollJinchuuriki(n) {
+  const gate = canRollJinchuuriki(n);
+  if (!gate.ok) return { error: gate.error };
+
+  const bijuu = BIJUU_POOL[Math.floor(Math.random() * BIJUU_POOL.length)];
+  n.unlockPoints = (n.unlockPoints || 0) - JINCHUURIKI_COST;
+  n.jinchuuriki = {
+    bijuuId: bijuu.id,
+    name: bijuu.name,
+    tails: bijuu.tails,
+    buff: bijuu.buff,
+    limit: bijuu.limit,
+    sealedAt: new Date().toISOString(),
+  };
+  if (!n.unlockedBijuuIds) n.unlockedBijuuIds = [];
+  const ecoId = `bijuu-${bijuu.id}`;
+  if (!n.unlockedBijuuIds.includes(ecoId)) n.unlockedBijuuIds.push(ecoId);
+  applyRankUps(n);
+  return { ok: true, jinchuuriki: n.jinchuuriki };
 }
 
 function missingForItem(n, item) {
@@ -265,6 +322,10 @@ export function tryUnlock(n, catalogId) {
   if (item.kind === 'bijuu' && (n.unlockedBijuuIds || []).includes(item.id)) {
     return { error: 'Você já desbloqueou isso.' };
   }
+  if (item.kind === 'sennin') {
+    if (n.senninPath) return { error: 'Você já escolheu um caminho sennin.' };
+    if (n.jinchuuriki?.bijuuId) return { error: 'Jinchūriki não pode estudar senjutsu.' };
+  }
 
   const missing = missingForItem(n, item);
   // "já tem" / "já possui" are hard locks; pts/chakra etc. also block
@@ -284,6 +345,8 @@ export function tryUnlock(n, catalogId) {
     n.unlockedKekkeiIds.push(item.id);
   } else if (item.kind === 'bijuu') {
     n.unlockedBijuuIds.push(item.id);
+  } else if (item.kind === 'sennin') {
+    n.senninPath = item.id;
   }
 
   applyRankUps(n);
@@ -360,18 +423,26 @@ function weightedPick(table) {
 export function catalogForUser(n) {
   const hasNature = (n.natures || []).length > 0;
   return NINJA_CATALOG.map((item) => {
-    const isOwned = item.kind === 'nature'
-      ? (n.natures || []).includes(item.natureId)
-      : item.kind === 'jutsu'
-        ? (n.learnedJutsuIds || []).includes(item.id)
-        : item.kind === 'kekkei'
-          ? (n.unlockedKekkeiIds || []).includes(item.id)
-          : (n.unlockedBijuuIds || []).includes(item.id);
+    let isOwned = false;
+    if (item.kind === 'nature') {
+      isOwned = (n.natures || []).includes(item.natureId);
+    } else if (item.kind === 'jutsu') {
+      isOwned = (n.learnedJutsuIds || []).includes(item.id);
+    } else if (item.kind === 'kekkei') {
+      isOwned = (n.unlockedKekkeiIds || []).includes(item.id);
+    } else if (item.kind === 'bijuu') {
+      isOwned = (n.unlockedBijuuIds || []).includes(item.id);
+    } else if (item.kind === 'sennin') {
+      isOwned = n.senninPath === item.id;
+    }
 
     // Oculta 1ª natureza após escolha; oculta 2ª natureza se já tem o elemento
+    // Oculta outros caminhos sennin se já escolheu um
     const hidden = Boolean(
       (item.firstNatureOnly && hasNature)
-      || (item.kind === 'nature' && !item.firstNatureOnly && (n.natures || []).includes(item.natureId)),
+      || (item.kind === 'nature' && !item.firstNatureOnly && (n.natures || []).includes(item.natureId))
+      || (item.kind === 'sennin' && n.senninPath && n.senninPath !== item.id)
+      || (item.kind === 'sennin' && n.jinchuuriki?.bijuuId),
     );
 
     const missing = isOwned || hidden ? [] : missingForItem(n, item);
