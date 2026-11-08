@@ -27,6 +27,8 @@ const ABILITY_TABS = [
   { id: 'sennin', label: 'Sennin' },
 ];
 
+const PATH_JUTSU_CATEGORIES = new Set(['dojutsu', 'bijuu', 'senjutsu', 'kekkei']);
+
 const NATURE_SHORT = {
   fire: 'Katon',
   water: 'Suiton',
@@ -165,6 +167,18 @@ export function NinjaPage() {
     () => catalog.filter((item) => item.kind === 'jutsu' && item.category === 'dojutsu' && !item.owned),
     [catalog],
   );
+  const bijuuJutsus = useMemo(
+    () => catalog.filter((item) => item.kind === 'jutsu' && item.category === 'bijuu' && !item.owned),
+    [catalog],
+  );
+  const senninJutsus = useMemo(
+    () => catalog.filter((item) => item.kind === 'jutsu' && item.category === 'senjutsu' && !item.owned),
+    [catalog],
+  );
+  const fusionJutsus = useMemo(
+    () => catalog.filter((item) => item.kind === 'jutsu' && item.category === 'kekkei' && !item.owned),
+    [catalog],
+  );
   const senninPaths = useMemo(
     () => catalog.filter((item) => item.kind === 'sennin' && !item.owned),
     [catalog],
@@ -177,7 +191,7 @@ export function NinjaPage() {
     () => catalog.filter((item) => (
       !item.owned
       && item.kind === 'jutsu'
-      && item.category !== 'dojutsu'
+      && !PATH_JUTSU_CATEGORIES.has(item.category)
     )),
     [catalog],
   );
@@ -614,7 +628,7 @@ export function NinjaPage() {
                       {fusions.length > 0 ? (
                         <>
                           <h3>Fusões (Kekkei)</h3>
-                          <p className="hint">Exigem os elementos-base.</p>
+                          <p className="hint">Exigem os elementos-base · custam pts.</p>
                           <ul className="ninja-list">
                             {fusions.map((item) => (
                               <CatalogRow
@@ -623,6 +637,24 @@ export function NinjaPage() {
                                 saving={saving}
                                 onUnlock={unlock}
                                 cta="Fundir"
+                              />
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
+
+                      {fusionJutsus.length > 0 ? (
+                        <>
+                          <h3>Jutsus de fusão</h3>
+                          <p className="hint">Só após desbloquear o marcador kekkei · todos com custo em pts.</p>
+                          <ul className="ninja-list">
+                            {fusionJutsus.map((item) => (
+                              <CatalogRow
+                                key={item.id}
+                                item={item}
+                                saving={saving}
+                                onUnlock={unlock}
+                                cta="Aprender"
                               />
                             ))}
                           </ul>
@@ -701,6 +733,25 @@ export function NinjaPage() {
                           </button>
                         </>
                       )}
+                      {bijuuJutsus.length > 0 ? (
+                        <>
+                          <h3>Técnicas de bijū</h3>
+                          <p className="hint">
+                            Exigem ser jinchūriki (algumas pedem bijū específica) · todas custam pts.
+                          </p>
+                          <ul className="ninja-list">
+                            {bijuuJutsus.map((item) => (
+                              <CatalogRow
+                                key={item.id}
+                                item={item}
+                                saving={saving}
+                                onUnlock={unlock}
+                                cta="Aprender"
+                              />
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
 
@@ -738,6 +789,23 @@ export function NinjaPage() {
                           )}
                         </>
                       )}
+                      {senninJutsus.length > 0 ? (
+                        <>
+                          <h3>Técnicas sennin</h3>
+                          <p className="hint">Exigem caminho sennin · todas custam pts.</p>
+                          <ul className="ninja-list">
+                            {senninJutsus.map((item) => (
+                              <CatalogRow
+                                key={item.id}
+                                item={item}
+                                saving={saving}
+                                onUnlock={unlock}
+                                cta="Aprender"
+                              />
+                            ))}
+                          </ul>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                 </>

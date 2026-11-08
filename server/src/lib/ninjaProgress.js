@@ -300,6 +300,21 @@ function missingForItem(n, item) {
       missing.push(dep ? dep.name : needId);
     }
   }
+  if (item.requiresJinchuuriki) {
+    const sealed = n.jinchuuriki?.bijuuId || null;
+    if (!sealed) {
+      missing.push('ser jinchūriki');
+    } else if (item.requiresJinchuuriki !== true && item.requiresJinchuuriki !== sealed) {
+      missing.push(`bijū ${item.requiresJinchuuriki}`);
+    }
+  }
+  if (item.requiresSennin) {
+    if (!n.senninPath) {
+      missing.push('caminho sennin');
+    } else if (item.requiresSennin !== true && item.requiresSennin !== n.senninPath) {
+      missing.push(`sennin ${item.requiresSennin}`);
+    }
+  }
   return missing;
 }
 
