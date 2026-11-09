@@ -8,7 +8,7 @@ useGLTF.preload('/models/sg-male.glb');
 useGLTF.preload('/models/sg-female.glb');
 
 /** Bumpe quando pose/morph local mudar, para reclonar o skeleton no HMR. */
-const STANCE_REV = 31;
+const STANCE_REV = 36;
 
 const RECOVERY_GLOW = {
   red: new THREE.Color('#e84a3c'),
@@ -214,6 +214,7 @@ function prepareMuscleData(root) {
         const belly = Math.exp(-(((along - 0.42) / 0.34) ** 2));
         const influence = armSkin * belly;
         if (influence >= 0.04) {
+          let frontArm = 0.5;
           radial.set(boneSpace.x, 0, boneSpace.z);
           if (radial.lengthSq() > 1e-8) {
             radial.normalize();
@@ -223,9 +224,13 @@ function prepareMuscleData(root) {
             armDeltas[i * 3] = radial.x * push;
             armDeltas[i * 3 + 1] = radial.y * push;
             armDeltas[i * 3 + 2] = radial.z * push;
+            // Face do braço em malha: +Z = frente (bíceps), −Z = costas (tríceps).
+            // Não usar tmp.z: com o braço colado ao tronco os dois lados ficam no mesmo Z.
+            frontArm = Math.pow(smoothstep(-0.28, 0.32, radial.z), 1.25);
+          } else {
+            frontArm = Math.pow(smoothstep(-0.02, 0.05, tmp.z), 1.2);
           }
-          const frontArm = smoothstep(-0.01, 0.03, tmp.z);
-          const rearArm = 1 - frontArm;
+          const rearArm = Math.pow(1 - frontArm, 1.05);
           recoveryMasks.biceps[i] = Math.max(recoveryMasks.biceps[i], influence * frontArm);
           recoveryMasks.triceps[i] = Math.max(recoveryMasks.triceps[i], influence * rearArm);
         }
@@ -289,24 +294,28 @@ function prepareMuscleData(root) {
         }
       }
 
-      // —— Peitoral estágio 3: placa + fenda + linha inferior (ainda controlado) ——
-      if (chestBoneIdx >= 0 && spineSkin >= 0.2 && armSkin < 0.4 && tmp.z > 0.018) {
+      // —— Peitoral: altura/miolo como antes + lateral um pouco mais larga ——
+      if (chestBoneIdx >= 0 && spineSkin >= 0.18 && tmp.z > 0.016 && armSkin < 0.72) {
         boneSpace.copy(tmp).applyMatrix4(obj.bindMatrix).applyMatrix4(skeleton.boneInverses[chestBoneIdx]);
         const ax = Math.abs(tmp.x);
-        const front = smoothstep(0.018, 0.052, tmp.z);
+        const front = smoothstep(0.016, 0.05, tmp.z);
+        // faixa vertical original (inclui a parte de cima)
         const vertical = smoothstep(-0.11, -0.04, boneSpace.y) * (1 - smoothstep(0.095, 0.145, boneSpace.y));
-        const plate = smoothstep(0.005, 0.014, ax) * (1 - smoothstep(0.084, 0.112, ax));
+        // um pouco mais largo que o original, sem baixar o peito
+        const plate = smoothstep(0.005, 0.014, ax) * (1 - smoothstep(0.108, 0.145, ax));
+        const lateral = smoothstep(0.02, 0.07, ax);
+        const armGate = 1 - smoothstep(0.48, 0.72, armSkin);
         const cleft = Math.exp(-((ax / 0.0048) ** 2));
-        const plateMask = plate * vertical * front * THREE.MathUtils.clamp(spineSkin, 0, 1);
-        const forwardAmt = plateMask * (1 - cleft * 0.58);
+        const plateMask = plate * vertical * front * armGate * THREE.MathUtils.clamp(spineSkin, 0, 1);
+        // miolo forte; lateral só um reforço leve
+        const forwardAmt = plateMask * (1 - cleft * 0.58) * (0.92 + 0.2 * lateral);
         const cleftAmt = cleft * vertical * front * THREE.MathUtils.clamp(spineSkin, 0, 1);
-        // prateleira do peito (borda inferior) — marca definição sem ir pra abs
         const shelf = smoothstep(-0.11, -0.07, boneSpace.y) * (1 - smoothstep(-0.055, -0.025, boneSpace.y));
-        if (forwardAmt >= 0.025 || cleftAmt >= 0.045) {
+        if (forwardAmt >= 0.022 || cleftAmt >= 0.04) {
           const side = tmp.x >= 0 ? 1 : -1;
           const push = chestPush * forwardAmt;
-          const shelfPush = chestPush * 0.55 * shelf * plate * front;
-          chestDeltas[i * 3] = side * 0.12 * push;
+          const shelfPush = chestPush * 0.55 * shelf * plate * front * armGate;
+          chestDeltas[i * 3] = side * (0.14 + 0.14 * lateral) * push;
           chestDeltas[i * 3 + 1] = 0.12 * push + 0.2 * shelfPush;
           chestDeltas[i * 3 + 2] = push + shelfPush * 0.65 - chestCleft * cleftAmt;
           recoveryMasks.chest[i] = Math.max(recoveryMasks.chest[i], Math.max(forwardAmt, cleftAmt));
@@ -479,8 +488,9 @@ function applyRecoveryGlow(root, recoveryMuscles = []) {
       for (const [id, level] of active) {
         const mask = masks[id];
         const raw = mask ? mask[i] : 0;
-        // falloff suave, mas ainda bem visível
-        const amt = Math.pow(smoothstep(0.04, 0.55, raw), 1.15);
+        // peito: preenche mais a lateral (máscara já é larga, o limiar antigo só mostrava o miolo)
+        const soft = id === 'chest' ? 0.36 : 0.55;
+        const amt = Math.pow(smoothstep(0.03, soft, raw), id === 'chest' ? 0.95 : 1.15);
         if (amt < 0.03) continue;
         _glowB.copy(RECOVERY_GLOW[level]);
         _glowA.lerp(_glowB, amt * 0.92);
