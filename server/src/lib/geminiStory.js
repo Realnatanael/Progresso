@@ -3,7 +3,7 @@
  * Sem chave / falha → null (caller usa fallback).
  */
 
-const DEFAULT_TEXT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_TEXT_MODEL = 'gemini-3.8-flash';
 
 export async function generateStoryBeatJson({ systemPrompt, userPrompt }) {
   const apiKey = process.env.GEMINI_API_KEY;
