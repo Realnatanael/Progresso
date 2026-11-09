@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage.jsx';
 import { BodyPage } from './pages/BodyPage.jsx';
 import { ProfilePage } from './pages/ProfilePage.jsx';
 import { NinjaPage } from './pages/NinjaPage.jsx';
+import { FxLabPage } from './pages/FxLabPage.jsx';
 
 function ScreenStatus() {
   return <p className="screen-status">Abrindo…</p>;
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/corpo" element={<Protected><BodyPage /></Protected>} />
       <Route path="/ninja" element={<Protected><NinjaPage /></Protected>} />
       <Route path="/perfil" element={<Protected><ProfilePage /></Protected>} />
+      {import.meta.env.DEV ? <Route path="/fx-lab" element={<FxLabPage />} /> : null}
       <Route path="/exercicios/:id" element={<Navigate to="/corpo" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

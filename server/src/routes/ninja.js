@@ -25,7 +25,10 @@ import {
 import { maybeRefreshNinjaAvatar } from '../lib/ninjaAvatarRefresh.js';
 import { ensureClanCrest } from '../lib/ninjaClanCrest.js';
 import { chooseDailyMission, ensureDailyMission } from '../lib/dailyMission.js';
-import { chooseStoryOption, startStoryBeat } from '../lib/storyEngine.js';
+import { actStoryBattle, chooseStoryOption, startStoryBeat } from '../lib/storyEngine.js';
+import { POSE_NAMES } from '../lib/geminiPose.js';
+import { NinjaPose } from '../models/NinjaPose.js';
+import { ensurePosesInBackground, poseStampOf, poseStatus } from '../lib/ninjaPoses.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -97,14 +100,13 @@ router.post('/story/advance', async (req, res, next) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
     const n = ensureNinja(user);
-    const result = await startStoryBeat(n, { displayName: user.name, today: date });
+    const result = startStoryBeat(n, { today: date });
     if (!result.ok) return res.status(400).json({ error: result.error });
     user.markModified('ninja');
     await user.save();
     res.json(buildPayload(user, [{
       type: 'story-advance',
       reused: Boolean(result.reused),
-      fromCache: Boolean(result.fromCache),
     }]));
   } catch (error) {
     next(error);
@@ -115,17 +117,57 @@ router.post('/story/choose', async (req, res, next) => {
   try {
     const choiceId = String(req.body?.choiceId || '').trim();
     if (!choiceId) return res.status(400).json({ error: 'Informe a escolha.' });
+    const jutsuId = req.body?.jutsuId ? String(req.body.jutsuId).trim() : null;
+    const beatId = req.body?.beatId ? String(req.body.beatId).trim() : null;
     const date = isIsoDate(req.body?.date) ? req.body.date : todayISO();
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
     const n = ensureNinja(user);
     const lookBefore = avatarLookKeyFromNinja(n);
-    const result = chooseStoryOption(n, choiceId, { today: date });
+    const result = chooseStoryOption(
+      n,
+      { choiceId, jutsuId, beatId },
+      { displayName: user.name, today: date },
+    );
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');
     const changes = [{ type: 'story-choose', outcome: result.outcome }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/story/battle/act', async (req, res, next) => {
+  try {
+    const action = String(req.body?.action || '').trim();
+    if (!action) return res.status(400).json({ error: 'Informe a ação.' });
+    const jutsuId = req.body?.jutsuId ? String(req.body.jutsuId).trim() : null;
+    const beatId = req.body?.beatId ? String(req.body.beatId).trim() : null;
+    const round = Number(req.body?.round) || null;
+    const date = isIsoDate(req.body?.date) ? req.body.date : todayISO();
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
+    const result = actStoryBattle(
+      n,
+      { action, jutsuId, round, beatId },
+      { displayName: user.name, today: date },
+    );
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    user.markModified('ninja');
+    const changes = [{
+      type: 'story-battle',
+      round: result.round,
+      battle: result.battle,
+      outcome: result.outcome,
+    }];
     await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
     res.json(buildPayload(user, changes));
   } catch (error) {
@@ -296,6 +338,47 @@ router.get('/avatar', async (req, res, next) => {
     res.setHeader('Content-Type', user.ninjaAvatarMime || 'image/png');
     res.setHeader('Cache-Control', 'private, max-age=3600');
     return res.send(user.ninjaAvatarData);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/poses', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    ensureNinja(user);
+    res.json(await poseStatus(user));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/poses', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    ensureNinja(user);
+    await ensurePosesInBackground(user);
+    res.json(await poseStatus(user));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/pose/:name', async (req, res, next) => {
+  try {
+    const name = String(req.params.name || '');
+    if (!POSE_NAMES.includes(name)) return res.status(404).json({ error: 'Pose desconhecida.' });
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    ensureNinja(user);
+    const stamp = poseStampOf(user);
+    const pose = stamp ? await NinjaPose.findOne({ userId: user._id, name, stamp }) : null;
+    if (!pose?.data?.length) return res.status(404).json({ error: 'Pose ainda não gerada.' });
+    res.setHeader('Content-Type', pose.mime || 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    return res.send(pose.data);
   } catch (error) {
     next(error);
   }

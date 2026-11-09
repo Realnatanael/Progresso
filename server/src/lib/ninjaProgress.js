@@ -19,7 +19,8 @@ import {
   JINCHUURIKI_COST,
   SENNIN_PATHS,
 } from '../data/pathsCatalog.js';
-import { buildStoryProgress } from '../data/storyRoadmap.js';
+import { buildStoryProgress } from './storyProgress.js';
+import { ensureStoryState } from './storyState.js';
 import { resolveActiveEye } from './ninjaAvatarLook.js';
 import { publicDailyMission } from './dailyMission.js';
 
@@ -37,20 +38,7 @@ export function ensureNinja(user) {
   if (!n.workoutPicks || typeof n.workoutPicks !== 'object') n.workoutPicks = {};
   if (n.jinchuuriki === undefined) n.jinchuuriki = null;
   if (n.senninPath === undefined) n.senninPath = null;
-  if (!n.story || typeof n.story !== 'object') {
-    n.story = {
-      completedChapterIds: [],
-      activeBeat: null,
-      cachedBeat: null,
-      retryAfter: null,
-      lastOutcome: null,
-      choiceHistory: [],
-    };
-  }
-  if (!Array.isArray(n.story.completedChapterIds)) n.story.completedChapterIds = [];
-  if (!Array.isArray(n.story.choiceHistory)) n.story.choiceHistory = [];
-  if (n.story.cachedBeat === undefined) n.story.cachedBeat = null;
-  if (n.story.retryAfter === undefined) n.story.retryAfter = null;
+  ensureStoryState(n);
   if (n.dailyMission === undefined) n.dailyMission = null;
   if (n.crestClanKey === undefined) n.crestClanKey = null;
   if (n.crestUpdatedAt === undefined) n.crestUpdatedAt = null;
@@ -102,7 +90,7 @@ export function publicNinja(user) {
       ? { id: sennin.id, name: sennin.name, buff: sennin.buff, limit: sennin.limit }
       : null,
     pendingStatPick: n.pendingStatPick || null,
-    story: buildStoryProgress(n, catalogById),
+    story: buildStoryProgress(n, catalogById, { displayName: user.name || '' }),
     dailyMission: decorateDailyMission(n),
     nextRank: nextRankInfo(n),
     avatarReady: Boolean(n.avatarReady),
