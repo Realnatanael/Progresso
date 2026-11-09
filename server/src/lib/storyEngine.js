@@ -9,6 +9,16 @@ import { generateStoryBeatJson } from './geminiStory.js';
 import { applyRankUps } from './ninjaProgress.js';
 
 const CHOICE_IDS = ['a', 'b', 'c'];
+/** Bump when prompts/schema change — força regenerar cachedBeat antigo. */
+const BEAT_PROMPT_VERSION = 3;
+const TONE_LABELS = {
+  coragem: 'Coragem',
+  cautela: 'Cautela',
+  astucia: 'Astúcia',
+  jutsu: 'Jutsu',
+  empatia: 'Empatia',
+  provocacao: 'Provocação',
+};
 
 export function storyContext(n) {
   ensureStoryState(n);
@@ -18,6 +28,10 @@ export function storyContext(n) {
     .map((id) => catalogById(id)?.name)
     .filter(Boolean)
     .slice(0, 12);
+  const recentChoices = (n.story.choiceHistory || [])
+    .filter((entry) => entry?.kind === 'story')
+    .slice(-3)
+    .map((entry) => `${entry.choiceLabel || entry.choiceId}: ${entry.summary || ''}`.slice(0, 120));
   return {
     chapter,
     jutsuCount: (n.learnedJutsuIds || []).length,
@@ -25,7 +39,20 @@ export function storyContext(n) {
     natures: [...(n.natures || [])],
     rank: n.rank || 'academy',
     clanName: n.clanName || '',
+    recentChoices,
   };
+}
+
+function isUsableCachedBeat(cached, chapter, jutsuCount) {
+  if (!cached || cached.chapterId !== chapter.id) return false;
+  if (Number(cached.jutsuCount || 0) !== jutsuCount) return false;
+  if (Number(cached.promptVersion) !== BEAT_PROMPT_VERSION) return false;
+  const narrative = String(cached.narrative || '');
+  if (/Três caminhos se abrem/i.test(narrative)) return false;
+  if (/A cena se desenrola\./i.test(narrative)) return false;
+  const labels = (cached.choices || []).map((c) => String(c.label || '')).join(' | ');
+  if (/Agir com coragem e foco/i.test(labels)) return false;
+  return Boolean(narrative.trim()) && Array.isArray(cached.choices) && cached.choices.length >= 3;
 }
 
 export function canStartStoryBeat(n, today = todayISO()) {
@@ -67,11 +94,7 @@ export async function startStoryBeat(n, { displayName, today = todayISO() } = {}
 
   // Reusa a mesma cena (sem IA) se for a mesma tentativa do capítulo e o arsenal não mudou.
   const cached = n.story.cachedBeat;
-  if (
-    cached
-    && cached.chapterId === chapter.id
-    && Number(cached.jutsuCount || 0) === ctx.jutsuCount
-  ) {
+  if (isUsableCachedBeat(cached, chapter, ctx.jutsuCount)) {
     const beat = {
       ...cached,
       createdAt: cached.createdAt || new Date().toISOString(),
@@ -80,6 +103,8 @@ export async function startStoryBeat(n, { displayName, today = todayISO() } = {}
     n.story.retryAfter = null;
     return { ok: true, beat, reused: true, fromCache: true };
   }
+  // Cache velho / genérico: joga fora pra gerar cena nova.
+  if (cached) n.story.cachedBeat = null;
 
   let beat = await generateStoryBeatFromAi({
     chapter,
@@ -125,9 +150,13 @@ export function chooseStoryOption(n, choiceId, { today = todayISO() } = {}) {
   const chapter = chapterById(beat.chapterId);
   const rewards = { unlockPoints: 0, chakra: 0 };
   const advances = choice.outcome === 'advance';
+  const rewardOnlyRepeat = choice.outcome === 'reward_only'
+    && n.story.rewardOnlyChapterId === beat.chapterId;
 
-  if (choice.reward?.unlockPoints) rewards.unlockPoints += Number(choice.reward.unlockPoints) || 0;
-  if (choice.reward?.chakra) rewards.chakra += Number(choice.reward.chakra) || 0;
+  if (!rewardOnlyRepeat) {
+    if (choice.reward?.unlockPoints) rewards.unlockPoints += Number(choice.reward.unlockPoints) || 0;
+    if (choice.reward?.chakra) rewards.chakra += Number(choice.reward.chakra) || 0;
+  }
 
   if (advances && chapter?.rewardOnAdvance) {
     rewards.unlockPoints += Number(chapter.rewardOnAdvance.unlockPoints) || 0;
@@ -173,10 +202,20 @@ export function chooseStoryOption(n, choiceId, { today = todayISO() } = {}) {
     }
     n.story.retryAfter = null;
     n.story.cachedBeat = null;
+    n.story.rewardOnlyChapterId = null;
     // Rank sobe só quando o capítulo de promoção foi concluído + requisitos
     applyRankUps(n);
+  } else if (choice.outcome === 'reward_only') {
+    // Pode tentar de novo hoje na mesma cena (sem farm: só 1 reward_only por capítulo).
+    n.story.retryAfter = null;
+    n.story.rewardOnlyChapterId = beat.chapterId;
+    if (n.story.cachedBeat) {
+      n.story.cachedBeat = { ...n.story.cachedBeat, jutsuCount: beat.jutsuCount ?? (n.learnedJutsuIds || []).length };
+    }
+    outcome.blurb = `${outcome.blurb} A cena continua aberta — escolha outro caminho quando quiser.`;
+    n.story.lastOutcome = outcome;
   } else {
-    // Falhou: trava nova geração de IA até amanhã; a mesma cena pode repetir depois.
+    // stuck: trava nova geração de IA até amanhã; a mesma cena pode repetir depois.
     const retryAfter = shiftDate(today, 1);
     n.story.retryAfter = retryAfter;
     outcome.retryAfter = retryAfter;
@@ -198,32 +237,36 @@ async function generateStoryBeatFromAi({
   successNeedsJutsu,
 }) {
   const systemPrompt = [
-    'Você escreve mini-cenas no universo Naruto (Konoha), em português do Brasil.',
-    'Responda SOMENTE JSON válido com este formato:',
-    '{"narrative":"2-4 frases","choices":[{"id":"a","label":"...","outcome":"advance|stuck|reward_only","requiresJutsu":false,"requiresJutsuId":null,"reward":{"unlockPoints":0,"chakra":0},"resultBlurb":"..."}]}',
-    'Regras:',
-    '- Exatamente 3 choices com ids a, b, c.',
-    '- narrative curta, viva, sem spoilers modernos fora do tom clássico.',
-    '- Se successNeedsJutsu=true e o ninja NÃO tem jutsus: TODAS as choices devem ter outcome "stuck" (ninguém gradua/avança).',
-    '- Se successNeedsJutsu=true e o ninja TEM jutsus: exatamente UMA choice deve ter outcome "advance" e mencionar/usar um jutsu da lista; as outras stuck ou reward_only.',
-    '- Se successNeedsJutsu=false: exatamente uma choice advance; as outras stuck/reward_only.',
-    '- requiresJutsu=true só na opção que usa jutsu; requiresJutsuId só se citar um id conhecido.',
-    '- Recompensas pequenas: unlockPoints 0-2, chakra 0-1 nas choices (o capítulo já dá bônus no advance).',
-    '- Sem markdown, sem texto fora do JSON.',
+    'Você é o narrador interativo do Progresso — mini-cenas estilo Naruto clássico (Konoha), em português do Brasil.',
+    'Escreva como visual novel: tensão, diálogo curto entre aspas, cheiro/som do lugar, e escolha com peso emocional.',
+    'Responda SOMENTE JSON válido:',
+    '{"location":"lugar curto","mood":"1-2 palavras","stakes":"o que está em jogo em 1 frase","narrative":"3-5 frases","choices":[{"id":"a","label":"ação em 2ª pessoa","tone":"coragem|cautela|astucia|jutsu|empatia|provocacao","outcome":"advance|stuck|reward_only","requiresJutsu":false,"requiresJutsuId":null,"reward":{"unlockPoints":0,"chakra":0},"resultBlurb":"2 frases do que acontece depois"}]}',
+    'Regras de cena:',
+    '- location + mood + stakes obrigatórios e específicos do capítulo (não genéricos).',
+    '- narrative: 3-5 frases; inclua pelo menos UMA fala entre aspas; cite o nome do ninja; sem meta ("você escolhe").',
+    '- Exatamente 3 choices ids a,b,c com tons DIFERENTES entre si.',
+    '- Labels de escolha = verbo de ação concreto (não "Opção A").',
+    '- resultBlurb = consequência cinematográfica (não "você avançou").',
+    '- Se successNeedsJutsu=true e hasJutsus=false: TODAS stuck.',
+    '- Se successNeedsJutsu=true e hasJutsus=true: exatamente UMA advance usando jutsu da lista; tone dessa = jutsu; requiresJutsu=true.',
+    '- Se successNeedsJutsu=false: exatamente uma advance.',
+    '- Recompensas pequenas nas choices: unlockPoints 0-2, chakra 0-1.',
+    '- Sem markdown, sem texto fora do JSON, sem spoilers pós-clássico.',
   ].join('\n');
 
   const userPrompt = [
     `Capítulo: ${chapter.title} (${chapter.id})`,
-    `Cena: ${chapter.sceneHint}`,
+    `Cena-guia: ${chapter.sceneHint}`,
     `Blurb: ${chapter.blurb}`,
-    `Nome: ${displayName || 'o genin'}`,
+    `Nome do ninja: ${displayName || 'o genin'}`,
     `Rank atual: ${ctx.rank}`,
-    `Clã: ${ctx.clanName || 'nenhum'}`,
+    `Clã / sobrenome: ${ctx.clanName || 'nenhum'}`,
     `Naturezas: ${ctx.natures.join(', ') || 'nenhuma'}`,
     `Jutsus conhecidos (${ctx.jutsuCount}): ${ctx.jutsuNames.join(' · ') || 'NENHUM'}`,
     `successNeedsJutsu: ${successNeedsJutsu}`,
     `hasJutsus: ${hasJutsus}`,
     `promotesTo: ${chapter.promotesTo || 'nenhum'}`,
+    `Decisões recentes (continuidade leve): ${ctx.recentChoices?.join(' | ') || 'nenhuma'}`,
   ].join('\n');
 
   try {
@@ -237,39 +280,49 @@ async function generateStoryBeatFromAi({
 /** Cenas escritas à mão quando a Gemini falha — evita o mesmo texto genérico em todo capítulo. */
 const CHAPTER_FALLBACKS = {
   academy_day_one: {
+    location: 'Portões Aun',
+    mood: 'nervosismo',
+    stakes: 'Marcar presença no primeiro dia.',
     narrative:
-      'Os Portões Aun se abrem ao sol da manhã. Iruka passa lista; um colega ri do seu sobrenome. O pátio cheira a madeira nova e nervosismo.',
+      'Os Portões Aun se abrem ao sol da manhã. Iruka passa lista; um colega ri do seu sobrenome. “Ei, clã famoso… aguenta a pressão?” O pátio cheira a madeira nova e nervosismo.',
     choices: [
       {
         id: 'a',
         label: 'Responder firme e se apresentar',
+        tone: 'coragem',
         outcome: 'advance',
         reward: { unlockPoints: 1 },
-        resultBlurb: 'Iruka sorri de canto. Você entra na turma de cabeça erguida.',
+        resultBlurb: 'Iruka sorri de canto. “Bom. Assim se entra na Academia.” Você entra de cabeça erguida.',
       },
       {
         id: 'b',
         label: 'Ficar em silêncio no fundo',
+        tone: 'cautela',
         outcome: 'stuck',
         reward: {},
-        resultBlurb: 'Ninguém te nota. O primeiro dia termina sem marcar presença.',
+        resultBlurb: 'Ninguém te nota. O primeiro dia acaba sem você existir na lista da sala.',
       },
       {
         id: 'c',
         label: 'Ajudar um aluno perdido a achar a sala',
+        tone: 'empatia',
         outcome: 'reward_only',
         reward: { unlockPoints: 1 },
-        resultBlurb: 'Faz um amigo, mas a chamada oficial ainda te espera amanhã.',
+        resultBlurb: 'Você faz um amigo. A chamada oficial, porém, ainda te espera amanhã.',
       },
     ],
   },
   academy_basics: {
+    location: 'Sala 3 · Academia',
+    mood: 'concentração',
+    stakes: 'Provar que o jutsu básico sai de verdade.',
     narrative:
-      'Iruka bate o giz no quadro: bunshin, henge, kawarimi. “Quem não tentar, não forma.” Selos ecoam pela sala.',
+      'Iruka bate o giz no quadro: bunshin, henge, kawarimi. “Quem não tentar, não forma.” Selos ecoam; um clone de um colega explode em fumaça e a turma ri.',
     choices: [
       {
         id: 'a',
         label: 'Demonstrar o clone com calma',
+        tone: 'coragem',
         outcome: 'advance',
         reward: { unlockPoints: 1 },
         resultBlurb: 'O clone treme, mas segura. Iruka anota: progresso.',
@@ -277,13 +330,15 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'b',
         label: 'Errar o selo e travar',
+        tone: 'cautela',
         outcome: 'stuck',
         reward: {},
-        resultBlurb: 'Fumaça demais, técnica de menos. Treine e volte.',
+        resultBlurb: 'Fumaça demais, técnica de menos. “Treine e volte”, diz Iruka.',
       },
       {
         id: 'c',
         label: 'Treinar kawarimi no corredor depois',
+        tone: 'astucia',
         outcome: 'reward_only',
         reward: { unlockPoints: 1 },
         resultBlurb: 'Você melhora sozinho, mas a aula oficial ainda não fecha.',
@@ -291,19 +346,24 @@ const CHAPTER_FALLBACKS = {
     ],
   },
   academy_rival: {
+    location: 'Pátio de treino',
+    mood: 'provocação',
+    stakes: 'Não deixar a provocação virar humilhação.',
     narrative:
-      'No pátio, um rival te empurra o ombro: “Academia não é brincadeira de clã.” O sensei observa de longe, sem interferir… ainda.',
+      'No pátio, um rival te empurra o ombro: “Academia não é brincadeira de clã.” Folhas voam. O sensei observa de longe, sem interferir… ainda.',
     choices: [
       {
         id: 'a',
         label: 'Aceitar o sparring e manter a guarda',
+        tone: 'coragem',
         outcome: 'advance',
         reward: { chakra: 1 },
-        resultBlurb: 'Você aguenta a pressão. O rival recua; o sensei anui.',
+        resultBlurb: 'Você aguenta a pressão. O rival recua; o sensei anui em silêncio.',
       },
       {
         id: 'b',
         label: 'Ignorar e ir embora',
+        tone: 'cautela',
         outcome: 'stuck',
         reward: {},
         resultBlurb: 'A provocação fica no ar. Sem confronto, o capítulo não anda.',
@@ -311,19 +371,58 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'c',
         label: 'Provocar de volta sem lutar',
+        tone: 'provocacao',
         outcome: 'reward_only',
         reward: { unlockPoints: 1 },
         resultBlurb: 'Ganha respeito verbal, mas o pátio ainda espera um sparring de verdade.',
       },
     ],
   },
+  genin_graduation: {
+    location: 'Sala de exames',
+    mood: 'tensão',
+    stakes: 'Graduar — ou repetir o ano.',
+    narrative:
+      'O examinador cruza os braços. “Mostre um jutsu. Sem técnica, não há bandana.” O silêncio da sala pesa como chumbo; colegas prendem a respiração.',
+    choices: [
+      {
+        id: 'a',
+        label: 'Executar seu jutsu na hora',
+        tone: 'jutsu',
+        outcome: 'advance',
+        requiresJutsu: true,
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Selos firmes. A técnica sai. “Genin.” A bandana brilha na sua mão.',
+      },
+      {
+        id: 'b',
+        label: 'Pedir mais tempo pra respirar',
+        tone: 'cautela',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'O examinador balança a cabeça. Sem demonstração, não há graduação hoje.',
+      },
+      {
+        id: 'c',
+        label: 'Blefar com postura de elite',
+        tone: 'astucia',
+        outcome: 'reward_only',
+        reward: {},
+        resultBlurb: 'A pose impressiona um pouco — o jutsu, não. Volte quando dominar a técnica.',
+      },
+    ],
+  },
   team_assignment: {
+    location: 'Sala do Hokage',
+    mood: 'expectativa',
+    stakes: 'Aceitar o time e o sensei.',
     narrative:
       'Na sala do Hokage, os nomes são lidos. Seu time se forma; um Jounin de máscara cruzada aparece no telhado e só diz: “Sigam-me.”',
     choices: [
       {
         id: 'a',
         label: 'Seguir o sensei sem hesitar',
+        tone: 'coragem',
         outcome: 'advance',
         reward: { unlockPoints: 1 },
         resultBlurb: 'Você sobe no telhado. O time começa de verdade.',
@@ -331,6 +430,7 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'b',
         label: 'Questionar a escolha dos colegas',
+        tone: 'provocacao',
         outcome: 'stuck',
         reward: {},
         resultBlurb: 'O sensei some. Sem confiança no time, a missão não sai.',
@@ -338,6 +438,7 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'c',
         label: 'Cumprimentar cada um antes de sair',
+        tone: 'empatia',
         outcome: 'reward_only',
         reward: { unlockPoints: 1 },
         resultBlurb: 'Clima melhor, mas o Jounin já foi embora — remarque o encontro.',
@@ -345,12 +446,16 @@ const CHAPTER_FALLBACKS = {
     ],
   },
   d_missions: {
+    location: 'Centro de missões',
+    mood: 'ironia',
+    stakes: 'Engolir o orgulho e cumprir Rank D.',
     narrative:
-      'Quadro Rank D: gato perdido, cerca torta, compras da vovó. Seu sensei ri. “Todo Hokage começou assim.”',
+      'Quadro Rank D: gato perdido, cerca torta, compras da vovó. Seu sensei ri. “Todo Hokage começou assim.” Um aldeão já aponta pra você.',
     choices: [
       {
         id: 'a',
         label: 'Pegar a missão do gato e cumprir direito',
+        tone: 'empatia',
         outcome: 'advance',
         reward: { unlockPoints: 2 },
         resultBlurb: 'Gato resgatado, aldeão feliz. Carimbo no relatório.',
@@ -358,6 +463,7 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'b',
         label: 'Recusar e exigir missão “de verdade”',
+        tone: 'provocacao',
         outcome: 'stuck',
         reward: {},
         resultBlurb: 'Sensei encolhe os ombros. Sem Rank D, não há Rank C.',
@@ -365,9 +471,44 @@ const CHAPTER_FALLBACKS = {
       {
         id: 'c',
         label: 'Dividir as tarefas com o time',
+        tone: 'astucia',
         outcome: 'reward_only',
         reward: { unlockPoints: 1 },
         resultBlurb: 'Bom espírito de equipe — ainda falta fechar o relatório oficial.',
+      },
+    ],
+  },
+  c_missions: {
+    location: 'Estrada fora de Konoha',
+    mood: 'alerta',
+    stakes: 'Proteger o cliente na primeira escolta real.',
+    narrative:
+      'O comerciante engole seco. “Tem… bandidos nessa estrada?” Seu sensei só responde: “Então mostrem o que aprenderam.” O mato se mexe sem vento.',
+    choices: [
+      {
+        id: 'a',
+        label: 'Abrir caminho com um jutsu',
+        tone: 'jutsu',
+        outcome: 'advance',
+        requiresJutsu: true,
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'A técnica corta a emboscada. O cliente chega intacto. Missão Rank C carimbada.',
+      },
+      {
+        id: 'b',
+        label: 'Esconder o cliente e esperar',
+        tone: 'cautela',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'A emboscada passa… e volta. Sem ação, a escolta falha.',
+      },
+      {
+        id: 'c',
+        label: 'Negociar passagem com os bandidos',
+        tone: 'astucia',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Compram tempo — não a vitória. A missão ainda não fecha.',
       },
     ],
   },
@@ -376,34 +517,41 @@ const CHAPTER_FALLBACKS = {
 function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
   const jutsu = ctx.jutsuNames[0] || 'seu jutsu';
   const base = chapter.sceneHint || chapter.blurb;
+  const nameHint = ctx.clanName ? ` do clã ${ctx.clanName}` : '';
 
   if (successNeedsJutsu && !hasJutsus) {
     return {
-      narrative: `${base} O examinador espera uma técnica. Você trava — sem jutsu, não há como impressionar.`,
+      location: chapter.title,
+      mood: 'pressão',
+      stakes: 'Sem jutsu, a prova trava.',
+      narrative: `${base} Um examinador crava o olhar em você${nameHint}. “Cadê a técnica?” Você trava — sem jutsu, não há como impressionar.`,
       choices: [
         {
           id: 'a',
           label: 'Tentar improvisar sem selos',
+          tone: 'coragem',
           outcome: 'stuck',
           requiresJutsu: false,
           reward: {},
-          resultBlurb: 'O golpe sai fraco. Reprovado por agora — volte quando souber um jutsu.',
+          resultBlurb: 'O golpe sai fraco. “Volte quando souber um jutsu.”',
         },
         {
           id: 'b',
           label: 'Pedir mais um dia de treino',
+          tone: 'cautela',
           outcome: 'stuck',
           requiresJutsu: false,
-          reward: { unlockPoints: 0 },
+          reward: {},
           resultBlurb: 'O sensei aceita adiar. Sem técnica, a história não avança.',
         },
         {
           id: 'c',
-          label: 'Fugir da prova',
+          label: 'Sair da sala com o orgulho ferido',
+          tone: 'provocacao',
           outcome: 'stuck',
           requiresJutsu: false,
           reward: {},
-          resultBlurb: 'Você sai da sala. A jornada fica no mesmo capítulo.',
+          resultBlurb: 'Você sai. A jornada fica no mesmo capítulo.',
         },
       ],
     };
@@ -411,11 +559,15 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
 
   if (successNeedsJutsu && hasJutsus) {
     return {
-      narrative: `${base} Chegou a hora: mostre um jutsu de verdade.`,
+      location: chapter.title,
+      mood: 'decisão',
+      stakes: 'Usar o jutsu agora — ou falhar a prova.',
+      narrative: `${base} “Mostre o que tem”, ordena a voz à sua frente. Seu chakra lateja: ${jutsu} está pronto.`,
       choices: [
         {
           id: 'a',
           label: `Usar ${jutsu}`,
+          tone: 'jutsu',
           outcome: 'advance',
           requiresJutsu: true,
           reward: { unlockPoints: 1 },
@@ -424,6 +576,7 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
         {
           id: 'b',
           label: 'Confiar só em taijutsu bruto',
+          tone: 'coragem',
           outcome: 'stuck',
           requiresJutsu: false,
           reward: {},
@@ -431,10 +584,11 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
         },
         {
           id: 'c',
-          label: 'Tentar blefar com selos errados',
+          label: 'Blefar com selos errados',
+          tone: 'astucia',
           outcome: 'reward_only',
           requiresJutsu: false,
-          reward: { chakra: 0 },
+          reward: {},
           resultBlurb: 'O blefe não cola. Você ganha experiência, mas não avança o capítulo.',
         },
       ],
@@ -444,6 +598,9 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
   const scripted = CHAPTER_FALLBACKS[chapter.id];
   if (scripted) {
     return {
+      location: scripted.location || chapter.title,
+      mood: scripted.mood || 'missão',
+      stakes: scripted.stakes || chapter.blurb,
       narrative: scripted.narrative,
       choices: scripted.choices.map((choice) => ({
         ...choice,
@@ -453,11 +610,15 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
   }
 
   return {
-    narrative: `${chapter.blurb} ${base}`,
+    location: chapter.title,
+    mood: 'missão',
+    stakes: chapter.blurb,
+    narrative: `${chapter.blurb} ${base} Alguém à sua frente pergunta: “E agora… o que você faz?”`,
     choices: [
       {
         id: 'a',
-        label: 'Agir com coragem e foco',
+        label: 'Avançar de frente, sem hesitar',
+        tone: 'coragem',
         outcome: 'advance',
         requiresJutsu: false,
         reward: { unlockPoints: 1 },
@@ -465,7 +626,8 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
       },
       {
         id: 'b',
-        label: 'Hesitar e observar demais',
+        label: 'Observar demais e perder o timing',
+        tone: 'cautela',
         outcome: 'stuck',
         requiresJutsu: false,
         reward: {},
@@ -474,6 +636,7 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
       {
         id: 'c',
         label: 'Ajudar um aliado em silêncio',
+        tone: 'empatia',
         outcome: 'reward_only',
         requiresJutsu: false,
         reward: { unlockPoints: 1 },
@@ -483,14 +646,30 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
   };
 }
 
+function normalizeTone(raw) {
+  const key = String(raw || '').toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  if (TONE_LABELS[key]) return key;
+  if (key.includes('jutsu')) return 'jutsu';
+  if (key.includes('coraj')) return 'coragem';
+  if (key.includes('caut') || key.includes('cuidado')) return 'cautela';
+  if (key.includes('astuc') || key.includes('esper')) return 'astucia';
+  if (key.includes('empat') || key.includes('aliado')) return 'empatia';
+  if (key.includes('provoc')) return 'provocacao';
+  return 'coragem';
+}
+
 function normalizeBeat(raw, { chapter, hasJutsus, successNeedsJutsu, jutsuNames }) {
-  const narrative = String(raw?.narrative || chapter.blurb).trim().slice(0, 900);
+  const narrative = String(raw?.narrative || chapter.blurb).trim().slice(0, 1100);
+  const location = String(raw?.location || chapter.title).trim().slice(0, 60);
+  const mood = String(raw?.mood || 'missão').trim().slice(0, 40);
+  const stakes = String(raw?.stakes || chapter.blurb).trim().slice(0, 140);
   let choices = Array.isArray(raw?.choices) ? raw.choices.slice(0, 3) : [];
 
   while (choices.length < 3) {
     choices.push({
       id: CHOICE_IDS[choices.length],
       label: 'Esperar e observar',
+      tone: 'cautela',
       outcome: 'stuck',
       requiresJutsu: false,
       reward: {},
@@ -500,25 +679,25 @@ function normalizeBeat(raw, { chapter, hasJutsus, successNeedsJutsu, jutsuNames 
 
   choices = choices.map((choice, index) => {
     const id = CHOICE_IDS[index];
-    let outcome = ['advance', 'stuck', 'reward_only'].includes(choice.outcome)
+    const outcome = ['advance', 'stuck', 'reward_only'].includes(choice.outcome)
       ? choice.outcome
       : 'stuck';
-    let requiresJutsu = Boolean(choice.requiresJutsu);
-    const requiresJutsuId = choice.requiresJutsuId && jutsuNames.length
-      ? null
-      : null;
+    const requiresJutsu = Boolean(choice.requiresJutsu);
+    const tone = normalizeTone(choice.tone || (requiresJutsu ? 'jutsu' : ''));
 
     return {
       id,
       label: String(choice.label || `Opção ${id.toUpperCase()}`).trim().slice(0, 90),
+      tone,
+      toneLabel: TONE_LABELS[tone] || tone,
       outcome,
       requiresJutsu,
-      requiresJutsuId,
+      requiresJutsuId: null,
       reward: {
         unlockPoints: Math.max(0, Math.min(2, Number(choice.reward?.unlockPoints) || 0)),
         chakra: Math.max(0, Math.min(1, Number(choice.reward?.chakra) || 0)),
       },
-      resultBlurb: String(choice.resultBlurb || '').trim().slice(0, 280),
+      resultBlurb: String(choice.resultBlurb || '').trim().slice(0, 320),
     };
   });
 
@@ -532,6 +711,8 @@ function normalizeBeat(raw, { chapter, hasJutsus, successNeedsJutsu, jutsuNames 
         ...choices[0],
         outcome: 'advance',
         requiresJutsu: Boolean(successNeedsJutsu && hasJutsus),
+        tone: successNeedsJutsu && hasJutsus ? 'jutsu' : choices[0].tone,
+        toneLabel: successNeedsJutsu && hasJutsus ? TONE_LABELS.jutsu : choices[0].toneLabel,
         label: successNeedsJutsu && hasJutsus
           ? `Usar ${jutsuNames[0]}`
           : choices[0].label,
@@ -552,8 +733,12 @@ function normalizeBeat(raw, { chapter, hasJutsus, successNeedsJutsu, jutsuNames 
 
   return {
     kind: 'story',
+    promptVersion: BEAT_PROMPT_VERSION,
     chapterId: chapter.id,
     chapterTitle: chapter.title,
+    location,
+    mood,
+    stakes,
     narrative,
     choices,
     createdAt: new Date().toISOString(),

@@ -72,6 +72,9 @@ export function NinjaPage() {
   const [selectedJutsuId, setSelectedJutsuId] = useState(null);
   const [openPanel, setOpenPanel] = useState(null);
   const [storyOpen, setStoryOpen] = useState(false);
+  const [storyOutcome, setStoryOutcome] = useState(null);
+  const [storyTyped, setStoryTyped] = useState('');
+  const [storyReady, setStoryReady] = useState(false);
   const [dailyOpen, setDailyOpen] = useState(false);
   const [dailyDismissed, setDailyDismissed] = useState(false);
   const [abilityOpen, setAbilityOpen] = useState(false);
@@ -312,7 +315,28 @@ export function NinjaPage() {
     }
   }, [unlocked, dailyMission, dailyDismissed, dailyOpen, storyOpen]);
 
+  useEffect(() => {
+    if (!storyOpen || !activeBeat?.narrative || storyOutcome) {
+      return undefined;
+    }
+    const full = String(activeBeat.narrative);
+    setStoryTyped('');
+    setStoryReady(false);
+    let i = 0;
+    const step = Math.max(1, Math.ceil(full.length / 90));
+    const timer = window.setInterval(() => {
+      i = Math.min(full.length, i + step);
+      setStoryTyped(full.slice(0, i));
+      if (i >= full.length) {
+        window.clearInterval(timer);
+        setStoryReady(true);
+      }
+    }, 28);
+    return () => window.clearInterval(timer);
+  }, [storyOpen, activeBeat?.chapterId, activeBeat?.createdAt, activeBeat?.narrative, storyOutcome]);
+
   async function advanceStory() {
+    setStoryOutcome(null);
     setStoryOpen(true);
     const payload = await run(() => api('/api/ninja/story/advance', {
       method: 'POST',
@@ -322,11 +346,25 @@ export function NinjaPage() {
   }
 
   async function chooseStory(choiceId) {
+    setStoryOutcome({ blurb: 'O destino responde…', advances: false, pending: true });
     const payload = await run(() => api('/api/ninja/story/choose', {
       method: 'POST',
       body: { choiceId, date },
     }));
-    if (payload) setStoryOpen(false);
+    if (!payload) {
+      setStoryOutcome(null);
+      return;
+    }
+    const fromChange = (payload.changes || []).find((c) => c.type === 'story-choose')?.outcome;
+    const outcome = fromChange || payload.ninja?.story?.lastOutcome || null;
+    setStoryOutcome(outcome || { blurb: 'A cena termina.', advances: false });
+  }
+
+  function closeStorySheet() {
+    setStoryOpen(false);
+    setStoryOutcome(null);
+    setStoryTyped('');
+    setStoryReady(false);
   }
 
   async function chooseDaily(choiceId) {
@@ -612,6 +650,7 @@ export function NinjaPage() {
                     disabled={saving || (!story.canAdvance && !activeBeat)}
                     onClick={() => {
                       if (activeBeat) {
+                        setStoryOutcome(null);
                         setStoryOpen(true);
                         return;
                       }
@@ -1179,54 +1218,111 @@ export function NinjaPage() {
         </div>
       ) : null}
 
-      {storyOpen && (activeBeat || saving) ? (
+      {storyOpen ? (
         <div className="ninja-sheet story-sheet" role="dialog" aria-modal="true" aria-label="Cena da história">
           <button
             type="button"
             className="ninja-sheet-backdrop"
             aria-label="Fechar"
-            onClick={() => !saving && setStoryOpen(false)}
+            onClick={() => !saving && closeStorySheet()}
           />
-          <div className="ninja-sheet-panel">
+          <div className={`ninja-sheet-panel story-panel${storyOutcome ? ' is-outcome' : ''}`}>
             <header className="ninja-sheet-head">
               <div>
                 <p className="nature-pick-kicker">Modo História</p>
-                <h2>{activeBeat?.chapterTitle || currentChapter?.title || 'Cena'}</h2>
+                <h2>{activeBeat?.chapterTitle || currentChapter?.title || storyOutcome?.chapterId || 'Cena'}</h2>
               </div>
               <button
                 type="button"
                 className="ghost jutsu-detail-close"
                 disabled={saving}
-                onClick={() => setStoryOpen(false)}
+                onClick={closeStorySheet}
                 aria-label="Fechar"
               >
                 ×
               </button>
             </header>
             <div className="ninja-sheet-body">
-              {!activeBeat && saving ? (
-                <p className="hint">A IA está montando a cena…</p>
+              {!activeBeat && saving && !storyOutcome ? (
+                <div className="story-loading">
+                  <span className="story-loading-pulse" aria-hidden="true" />
+                  <p>O narrador está montando a cena…</p>
+                  <p className="hint">Diálogo, tensão e três caminhos.</p>
+                </div>
               ) : null}
-              {activeBeat ? (
+
+              {storyOutcome ? (
+                <div className={`story-outcome-card ${storyOutcome.advances ? 'win' : 'hold'}`}>
+                  <p className="story-outcome-kicker">
+                    {storyOutcome.advances ? 'Capítulo avançou' : 'A cena não fechou'}
+                  </p>
+                  <p className="story-narrative story-outcome-blurb">{storyOutcome.blurb}</p>
+                  {(storyOutcome.rewards?.unlockPoints || storyOutcome.rewards?.chakra) ? (
+                    <div className="story-reward-row">
+                      {storyOutcome.rewards.unlockPoints ? (
+                        <span>+{storyOutcome.rewards.unlockPoints} pts</span>
+                      ) : null}
+                      {storyOutcome.rewards.chakra ? (
+                        <span>+{storyOutcome.rewards.chakra} chakra</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <button type="button" className="primary" onClick={closeStorySheet}>
+                    Continuar
+                  </button>
+                </div>
+              ) : null}
+
+              {activeBeat && !storyOutcome ? (
                 <>
-                  <p className="story-narrative">{activeBeat.narrative}</p>
-                  <div className="story-choices">
-                    {(activeBeat.choices || []).map((choice) => {
-                      const locked = Boolean(choice.requiresJutsu && !jutsuOwned);
-                      return (
-                        <button
-                          key={choice.id}
-                          type="button"
-                          className="story-choice"
-                          disabled={saving || locked}
-                          onClick={() => chooseStory(choice.id)}
-                        >
-                          <strong>{choice.label}</strong>
-                          {locked ? <em>Precisa de um jutsu</em> : null}
-                        </button>
-                      );
-                    })}
+                  <div className="story-meta">
+                    {activeBeat.location ? <span>{activeBeat.location}</span> : null}
+                    {activeBeat.mood ? <span>{activeBeat.mood}</span> : null}
                   </div>
+                  {activeBeat.stakes ? (
+                    <p className="story-stakes">{activeBeat.stakes}</p>
+                  ) : null}
+                  <p className="story-narrative">
+                    {storyTyped}
+                    {!storyReady ? <span className="story-caret" aria-hidden="true" /> : null}
+                  </p>
+                  {!storyReady ? (
+                    <button
+                      type="button"
+                      className="ghost story-skip-type"
+                      onClick={() => {
+                        setStoryTyped(activeBeat.narrative);
+                        setStoryReady(true);
+                      }}
+                    >
+                      Pular texto
+                    </button>
+                  ) : (
+                    <div className="story-choices">
+                      <p className="story-choices-label">O que você faz?</p>
+                      {(activeBeat.choices || []).map((choice) => {
+                        const locked = Boolean(choice.requiresJutsu && !jutsuOwned);
+                        return (
+                          <button
+                            key={choice.id}
+                            type="button"
+                            className={`story-choice tone-${choice.tone || 'coragem'}`}
+                            disabled={saving || locked}
+                            onClick={() => chooseStory(choice.id)}
+                          >
+                            <span className="story-choice-top">
+                              <em className="story-choice-id">{String(choice.id).toUpperCase()}</em>
+                              {choice.toneLabel || choice.tone ? (
+                                <em className="story-choice-tone">{choice.toneLabel || choice.tone}</em>
+                              ) : null}
+                            </span>
+                            <strong>{choice.label}</strong>
+                            {locked ? <em>Precisa de um jutsu</em> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </>
               ) : null}
             </div>

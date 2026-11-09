@@ -23,7 +23,8 @@ export async function generateStoryBeatJson({ systemPrompt, userPrompt }) {
         },
       ],
       generationConfig: {
-        temperature: 0.9,
+        temperature: 1.05,
+        topP: 0.95,
         responseMimeType: 'application/json',
       },
     }),

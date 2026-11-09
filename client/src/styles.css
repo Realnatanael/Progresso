@@ -1975,18 +1975,75 @@ a { color: var(--gold); }
 
 .story-narrative {
   margin: 0 0 14px;
-  font-size: 1rem;
-  line-height: 1.45;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  min-height: 4.5em;
+}
+
+.story-caret {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.1em;
+  background: color-mix(in srgb, var(--gold) 80%, #c45c26);
+  animation: story-blink 0.9s steps(1) infinite;
+}
+
+@keyframes story-blink {
+  50% { opacity: 0; }
+}
+
+.story-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.story-meta span {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: color-mix(in srgb, var(--raise) 70%, transparent);
+}
+
+.story-stakes {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: color-mix(in srgb, #c45c26 70%, var(--text));
+  font-style: italic;
 }
 
 .story-choices {
   display: grid;
   gap: 8px;
+  animation: story-choices-in 280ms ease;
+}
+
+@keyframes story-choices-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.story-choices-label {
+  margin: 0 0 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.story-skip-type {
+  margin-bottom: 8px;
+  font-size: 0.82rem;
 }
 
 .story-choice {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   text-align: left;
   padding: 12px 14px;
   border-radius: 14px;
@@ -1994,7 +2051,33 @@ a { color: var(--gold); }
   background: color-mix(in srgb, var(--bg) 65%, transparent);
   color: inherit;
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.story-choice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.story-choice-id {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+
+.story-choice-tone {
+  font-style: normal;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
 }
 
 .story-choice:hover:not(:disabled),
@@ -2002,6 +2085,7 @@ a { color: var(--gold); }
   border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
   background: color-mix(in srgb, var(--gold) 10%, var(--raise));
   outline: none;
+  transform: translateY(-1px);
 }
 
 .story-choice:disabled {
@@ -2013,6 +2097,77 @@ a { color: var(--gold); }
   font-style: normal;
   font-size: 0.75rem;
   color: var(--faint);
+}
+
+.story-loading {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 8px 0 4px;
+}
+
+.story-loading-pulse {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, var(--gold), #c45c26 55%, transparent 70%);
+  animation: story-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes story-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.7; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
+
+.story-outcome-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--raise) 80%, transparent);
+  animation: story-choices-in 320ms ease;
+}
+
+.story-outcome-card.win {
+  border-color: color-mix(in srgb, #4caf6a 45%, var(--line));
+  background: color-mix(in srgb, #4caf6a 10%, var(--raise));
+}
+
+.story-outcome-card.hold {
+  border-color: color-mix(in srgb, #c45c26 35%, var(--line));
+}
+
+.story-outcome-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.story-outcome-blurb {
+  min-height: 0;
+  margin: 0;
+}
+
+.story-reward-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.story-reward-row span {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--gold);
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, var(--line));
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
+.story-panel.is-outcome .ninja-sheet-body {
+  padding-top: 4px;
 }
 
 .daily-mission-done {
