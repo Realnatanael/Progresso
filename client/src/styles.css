@@ -1094,6 +1094,23 @@ a { color: var(--gold); }
   color: var(--gold-ink);
 }
 
+.legacy-exercises {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.legacy-exercises li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .recovery-strip {
   display: grid;
   gap: 8px;

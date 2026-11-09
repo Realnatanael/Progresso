@@ -6,7 +6,7 @@ import { AppNav } from '../components/AppNav.jsx';
 import { BodyAvatar } from '../components/BodyAvatar.jsx';
 import { formatKg, formatNumber, genderLabel } from '../format.js';
 import { USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
-import { findWorkoutTag, MUSCLE_GROUPS, RECOVERY_LEVELS, WORKOUT_TAGS } from '../muscles.js';
+import { findWorkoutTag, RECOVERY_LEVELS, WORKOUT_TAGS } from '../muscles.js';
 import { syncNinja } from '../ninjaSync.js';
 
 const DAY_PICKS = [
@@ -18,6 +18,24 @@ const DAY_PICKS = [
   { weekday: 6, short: 'Sáb' },
   { weekday: 0, short: 'Dom' },
 ];
+
+function sameMuscles(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  const left = [...a].sort();
+  const right = [...b].sort();
+  return left.every((id, index) => id === right[index]);
+}
+
+function findExerciseByTag(day, tag) {
+  const label = tag.label.toLowerCase();
+  const byName = day.exercises.find((item) => String(item.name || '').trim().toLowerCase() === label);
+  if (byName) return byName;
+  return day.exercises.find((item) => sameMuscles(item.muscles, tag.muscles)) || null;
+}
+
+function customExercises(day) {
+  return day.exercises.filter((item) => !findWorkoutTag(item.name) && !WORKOUT_TAGS.some((tag) => sameMuscles(item.muscles, tag.muscles)));
+}
 
 export function BodyPage() {
   const { logout } = useAuth();
@@ -80,11 +98,6 @@ export function BodyPage() {
     });
   }
 
-  function findExerciseByTag(day, tag) {
-    const label = tag.label.toLowerCase();
-    return day.exercises.find((item) => String(item.name || '').trim().toLowerCase() === label) || null;
-  }
-
   function toggleTag(weekday, tag) {
     if (!plan) return undefined;
     const day = plan.days.find((item) => item.weekday === weekday);
@@ -105,52 +118,10 @@ export function BodyPage() {
     });
   }
 
-  function moveExercise(exerciseId, direction) {
-    if (!plan) return undefined;
-    return run(async () => {
-      await api(`/api/habits/${plan.id}/exercises/${exerciseId}`, {
-        method: 'PATCH',
-        body: { date, direction },
-      });
-      return refreshBody();
-    });
-  }
-
   function removeExercise(exerciseId) {
     if (!plan) return undefined;
     return run(async () => {
       await api(`/api/habits/${plan.id}/exercises/${exerciseId}?date=${date}`, { method: 'DELETE' });
-      return refreshBody();
-    });
-  }
-
-  function toggleMuscle(exercise, muscleId) {
-    if (!plan) return undefined;
-    const current = exercise.muscles || [];
-    const muscles = current.includes(muscleId)
-      ? current.filter((id) => id !== muscleId)
-      : [...current, muscleId];
-    // otimista: atualiza chips na hora
-    setBody((prev) => {
-      if (!prev?.workout) return prev;
-      return {
-        ...prev,
-        workout: {
-          ...prev.workout,
-          days: prev.workout.days.map((day) => ({
-            ...day,
-            exercises: day.exercises.map((item) => (
-              item.id === exercise.id ? { ...item, muscles } : item
-            )),
-          })),
-        },
-      };
-    });
-    return run(async () => {
-      await api(`/api/habits/${plan.id}/exercises/${exercise.id}`, {
-        method: 'PATCH',
-        body: { date, muscles },
-      });
       return refreshBody();
     });
   }
@@ -297,72 +268,54 @@ export function BodyPage() {
                     ))}
                   </div>
                   <ul className="plan-read">
-                    {plan.days.map((day) => (
-                      <li key={day.weekday} className={day.today ? 'today' : ''}>
-                        <div className="plan-read-line">
-                          <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
-                        </div>
-                        <div className="plan-edit">
-                          <div className="workout-tags" role="group" aria-label={`Tags de ${day.name}`}>
-                            {WORKOUT_TAGS.map((tag) => {
-                              const on = Boolean(findExerciseByTag(day, tag));
-                              return (
-                                <button
-                                  key={tag.id}
-                                  type="button"
-                                  className="workout-tag"
-                                  aria-pressed={on}
-                                  disabled={saving}
-                                  onClick={() => toggleTag(day.weekday, tag)}
-                                >
-                                  {tag.label}
-                                </button>
-                              );
-                            })}
+                    {plan.days.map((day) => {
+                      const leftovers = customExercises(day);
+                      return (
+                        <li key={day.weekday} className={day.today ? 'today' : ''}>
+                          <div className="plan-read-line">
+                            <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
                           </div>
-                          {day.exercises.length ? (
-                            <ul className="exercise-list">
-                              {day.exercises.map((exercise, index) => {
-                                const tagged = exercise.muscles || [];
-                                const preset = findWorkoutTag(exercise.name);
-                                const showMusclePicks = !preset || preset.muscles.length > 1 || tagged.length !== 1;
+                          <div className="plan-edit">
+                            <p className="hint">Toque nas tags do que quer treinar — sem digitar</p>
+                            <div className="workout-tags" role="group" aria-label={`Tags de ${day.name}`}>
+                              {WORKOUT_TAGS.map((tag) => {
+                                const on = Boolean(findExerciseByTag(day, tag));
                                 return (
-                                  <li key={exercise.id} className="exercise-row">
-                                    <div className="exercise-main">
-                                      <span>{exercise.name}</span>
-                                      <button type="button" className="text" aria-label={`Subir ${exercise.name}`} disabled={saving || index === 0} onClick={() => moveExercise(exercise.id, 'up')}>↑</button>
-                                      <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
-                                      <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
-                                    </div>
-                                    {showMusclePicks ? (
-                                      <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
-                                        {MUSCLE_GROUPS.map((muscle) => {
-                                          const on = tagged.includes(muscle.id);
-                                          return (
-                                            <button
-                                              key={muscle.id}
-                                              type="button"
-                                              className="muscle-chip"
-                                              aria-pressed={on}
-                                              disabled={saving}
-                                              onClick={() => toggleMuscle(exercise, muscle.id)}
-                                            >
-                                              {muscle.label}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    ) : null}
-                                  </li>
+                                  <button
+                                    key={tag.id}
+                                    type="button"
+                                    className="workout-tag"
+                                    aria-pressed={on}
+                                    disabled={saving}
+                                    onClick={() => toggleTag(day.weekday, tag)}
+                                  >
+                                    {tag.label}
+                                  </button>
                                 );
                               })}
-                            </ul>
-                          ) : (
-                            <p className="hint">Toque nas tags para montar o dia</p>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                            </div>
+                            {leftovers.length ? (
+                              <ul className="legacy-exercises" aria-label={`Itens antigos de ${day.name}`}>
+                                {leftovers.map((exercise) => (
+                                  <li key={exercise.id}>
+                                    <span>{exercise.name}</span>
+                                    <button
+                                      type="button"
+                                      className="text"
+                                      aria-label={`Remover ${exercise.name}`}
+                                      disabled={saving}
+                                      onClick={() => removeExercise(exercise.id)}
+                                    >
+                                      Remover
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               ) : plan.restToday || !todayPlan ? (
@@ -374,8 +327,8 @@ export function BodyPage() {
                   </p>
                   <p className="hint">
                     {todayPlan.exercises.length
-                      ? todayPlan.exercises.map((item) => item.name).join(' · ')
-                      : 'Sem exercícios neste dia'}
+                      ? todayPlan.exercises.map((item) => findWorkoutTag(item.name)?.label || item.name).join(' · ')
+                      : 'Nenhuma tag neste dia — toque em Editar plano'}
                   </p>
                   <button className="primary mark-workout" type="button" onClick={toggleDone} disabled={saving}>
                     {plan.doneToday ? 'Desmarcar treino' : 'Marcar treino de hoje'}
