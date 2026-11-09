@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/User.js';
+import { Habit } from '../models/Habit.js';
+import { CheckIn } from '../models/CheckIn.js';
+import { WaterEntry } from '../models/WaterEntry.js';
+import { WeightEntry } from '../models/WeightEntry.js';
+import { NinjaPose } from '../models/NinjaPose.js';
 import { requireAuth } from '../middleware/auth.js';
 import { clearAuthCookie, setAuthCookie } from '../lib/authCookie.js';
 import { defaultNinjaState } from '../data/ninjaCatalog.js';
@@ -84,6 +89,36 @@ router.post('/logout', (req, res) => {
 
 router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user.toPublic() });
+});
+
+/** Apaga a conta e todo o registro ligado ao usuário. */
+router.delete('/account', requireAuth, async (req, res, next) => {
+  try {
+    const password = String(req.body?.password || '');
+    if (!password) {
+      return res.status(400).json({ error: 'Informe a senha para excluir a conta.' });
+    }
+
+    const matches = await bcrypt.compare(password, req.user.passwordHash);
+    if (!matches) {
+      return res.status(401).json({ error: 'Senha incorreta.' });
+    }
+
+    const userId = req.user._id;
+    await Promise.all([
+      CheckIn.deleteMany({ userId }),
+      WaterEntry.deleteMany({ userId }),
+      WeightEntry.deleteMany({ userId }),
+      NinjaPose.deleteMany({ userId }),
+      Habit.deleteMany({ userId }),
+    ]);
+    await User.deleteOne({ _id: userId });
+
+    clearAuthCookie(res);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 function readEssentialProfile(body) {

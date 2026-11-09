@@ -61,6 +61,14 @@ export function AuthProvider({ children }) {
           flushSync(() => setUser(null));
         }
       },
+      async deleteAccount(password) {
+        await api('/api/auth/account', {
+          method: 'DELETE',
+          body: { password },
+        });
+        authGen.current += 1;
+        flushSync(() => setUser(null));
+      },
     }),
     [user, loading],
   );
