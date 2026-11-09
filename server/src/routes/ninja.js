@@ -22,6 +22,8 @@ import {
   avatarLookKeyFromNinja,
 } from '../lib/ninjaAvatarLook.js';
 import { maybeRefreshNinjaAvatar } from '../lib/ninjaAvatarRefresh.js';
+import { chooseDailyMission, ensureDailyMission } from '../lib/dailyMission.js';
+import { chooseStoryOption, startStoryBeat } from '../lib/storyEngine.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -44,6 +46,11 @@ router.get('/', async (req, res, next) => {
       const flags = await dayFlagsForUser(user._id, date);
       const lookBefore = avatarLookKeyFromNinja(n);
       changes = syncDayAwards(n, date, flags);
+      try {
+        await ensureDailyMission(n, date, { displayName: user.name });
+      } catch (error) {
+        console.error('Missão diária:', error?.message || error);
+      }
       user.markModified('ninja');
       await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
     }
@@ -66,10 +73,74 @@ router.post('/sync', async (req, res, next) => {
     const flags = await dayFlagsForUser(user._id, date);
     const lookBefore = avatarLookKeyFromNinja(n);
     const changes = syncDayAwards(n, date, flags);
+    try {
+      await ensureDailyMission(n, date, { displayName: user.name });
+    } catch (error) {
+      console.error('Missão diária:', error?.message || error);
+    }
     user.markModified('ninja');
     await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
 
     res.json(buildPayload(user, changes, flags));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/story/advance', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    const n = ensureNinja(user);
+    const result = await startStoryBeat(n, { displayName: user.name });
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    user.markModified('ninja');
+    await user.save();
+    res.json(buildPayload(user, [{ type: 'story-advance', reused: Boolean(result.reused) }]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/story/choose', async (req, res, next) => {
+  try {
+    const choiceId = String(req.body?.choiceId || '').trim();
+    if (!choiceId) return res.status(400).json({ error: 'Informe a escolha.' });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
+    const result = chooseStoryOption(n, choiceId);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    user.markModified('ninja');
+    const changes = [{ type: 'story-choose', outcome: result.outcome }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/daily-mission/choose', async (req, res, next) => {
+  try {
+    const choiceId = String(req.body?.choiceId || '').trim();
+    if (!choiceId) return res.status(400).json({ error: 'Informe a escolha.' });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+    const n = ensureNinja(user);
+    const result = chooseDailyMission(n, choiceId);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    user.markModified('ninja');
+    await user.save();
+    res.json(buildPayload(user, [{
+      type: 'daily-mission',
+      success: result.success,
+      rewards: result.rewards,
+    }]));
   } catch (error) {
     next(error);
   }

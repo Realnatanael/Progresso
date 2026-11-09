@@ -19,6 +19,7 @@ import {
 } from '../data/pathsCatalog.js';
 import { buildStoryProgress } from '../data/storyRoadmap.js';
 import { resolveActiveEye } from './ninjaAvatarLook.js';
+import { publicDailyMission } from './dailyMission.js';
 
 export function ensureNinja(user) {
   if (!user.ninja || typeof user.ninja !== 'object') {
@@ -34,6 +35,17 @@ export function ensureNinja(user) {
   if (!n.workoutPicks || typeof n.workoutPicks !== 'object') n.workoutPicks = {};
   if (n.jinchuuriki === undefined) n.jinchuuriki = null;
   if (n.senninPath === undefined) n.senninPath = null;
+  if (!n.story || typeof n.story !== 'object') {
+    n.story = {
+      completedChapterIds: [],
+      activeBeat: null,
+      lastOutcome: null,
+      choiceHistory: [],
+    };
+  }
+  if (!Array.isArray(n.story.completedChapterIds)) n.story.completedChapterIds = [];
+  if (!Array.isArray(n.story.choiceHistory)) n.story.choiceHistory = [];
+  if (n.dailyMission === undefined) n.dailyMission = null;
 
   // Clã = sobrenome da pessoa
   const surname = surnameFromFullName(user.name);
@@ -79,6 +91,7 @@ export function publicNinja(user) {
       : null,
     pendingStatPick: n.pendingStatPick || null,
     story: buildStoryProgress(n, catalogById),
+    dailyMission: decorateDailyMission(n),
     nextRank: nextRankInfo(n),
     avatarReady: Boolean(n.avatarReady),
     avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
@@ -96,6 +109,19 @@ function formatNatureLabel(id) {
   const nat = NATURES.find((x) => x.id === id);
   if (!nat) return id;
   return `${nat.label} (${nat.release})`;
+}
+
+function decorateDailyMission(n) {
+  const mission = publicDailyMission(n.dailyMission);
+  if (!mission) return null;
+  const hasJutsus = (n.learnedJutsuIds || []).length > 0;
+  return {
+    ...mission,
+    choices: (mission.choices || []).map((choice) => ({
+      ...choice,
+      locked: Boolean(choice.requiresJutsu && !hasJutsus),
+    })),
+  };
 }
 
 function rankLabelOf(rank) {
@@ -131,16 +157,27 @@ function meetsRankUp(n, req) {
     && natures >= (req.natures || 0);
 }
 
+/** Promoções de patente exigem capítulo de história concluído + requisitos. */
+const RANK_STORY_GATE = {
+  academy_to_genin: 'genin_graduation',
+  genin_to_chuunin: 'chuunin_finals',
+  chuunin_to_jounin: 'jounin_promotion',
+};
+
 export function applyRankUps(n) {
   const promoted = [];
+  const completed = new Set(n.story?.completedChapterIds || []);
   const chain = [
-    RANK_UP.academy_to_genin,
-    RANK_UP.genin_to_chuunin,
-    RANK_UP.chuunin_to_jounin,
+    { key: 'academy_to_genin', rule: RANK_UP.academy_to_genin },
+    { key: 'genin_to_chuunin', rule: RANK_UP.genin_to_chuunin },
+    { key: 'chuunin_to_jounin', rule: RANK_UP.chuunin_to_jounin },
   ];
-  for (const rule of chain) {
+  for (const { key, rule } of chain) {
     if (!rule) continue;
-    if (n.rank === rule.from && meetsRankUp(n, rule.requires)) {
+    const storyChapter = RANK_STORY_GATE[key];
+    if (n.rank === rule.from
+      && meetsRankUp(n, rule.requires)
+      && (!storyChapter || completed.has(storyChapter))) {
       n.rank = rule.to;
       promoted.push(rule.to);
     }
