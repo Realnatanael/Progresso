@@ -1291,18 +1291,62 @@ a { color: var(--gold); }
 
 .ninja-stats { display: grid; gap: 10px; }
 
-.ninja-convert-pts {
-  justify-self: start;
-  font-size: 0.82rem;
-  padding: 6px 12px;
+.ninja-train-hint {
+  margin: 10px 0 0;
 }
 
 .ninja-bar-head {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   font-size: 0.88rem;
   margin-bottom: 4px;
+}
+
+.ninja-bar-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ninja-stat-plus {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: color-mix(in srgb, var(--gold) 18%, var(--raise));
+  color: var(--gold);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 140ms ease, background 140ms ease, opacity 140ms ease;
+}
+
+.ninja-stat-plus:hover:not(:disabled),
+.ninja-stat-plus:focus-visible:not(:disabled) {
+  transform: scale(1.06);
+  background: color-mix(in srgb, var(--gold) 28%, var(--raise));
+  outline: none;
+}
+
+.ninja-stat-plus:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ninja-stat-plus.is-pulse {
+  animation: ninja-plus-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes ninja-plus-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(226, 162, 58, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(226, 162, 58, 0); }
 }
 
 .ninja-bar-track {
@@ -2146,12 +2190,17 @@ a { color: var(--gold); }
   }
 }
 
+.profile-ninja-photo {
+  margin-top: 10px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .meter span,
   .glasses li,
   .jutsu-tile,
   .nature-seal,
-  .ninja-vault {
+  .ninja-vault,
+  .ninja-stat-plus {
     animation: none;
     transition: none;
   }
