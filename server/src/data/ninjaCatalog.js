@@ -291,5 +291,12 @@ export function defaultNinjaState() {
     avatarReady: false,
     avatarUpdatedAt: null,
     avatarLookKey: null,
+    story: {
+      completedChapterIds: [],
+      activeBeat: null,
+      lastOutcome: null,
+      choiceHistory: [],
+    },
+    dailyMission: null,
   };
 }

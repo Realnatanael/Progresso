@@ -44,6 +44,10 @@ const ninjaSchema = new mongoose.Schema(
     avatarUpdatedAt: { type: Date, default: null },
     /** rank|eye:stage — último visual gerado (pra regenerar só quando muda) */
     avatarLookKey: { type: String, default: null },
+    /** Modo História: capítulos concluídos, cena ativa, histórico */
+    story: { type: mongoose.Schema.Types.Mixed, default: null },
+    /** Missão diária (1 por dia) */
+    dailyMission: { type: mongoose.Schema.Types.Mixed, default: null },
   },
   { _id: false },
 );

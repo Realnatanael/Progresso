@@ -1818,6 +1818,81 @@ a { color: var(--gold); }
   color: var(--muted);
 }
 
+.story-goals-mini {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.story-goals-mini .done {
+  color: #4caf6a;
+}
+
+.story-advance-btn {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.story-last-outcome {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.story-narrative {
+  margin: 0 0 14px;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.story-choices {
+  display: grid;
+  gap: 8px;
+}
+
+.story-choice {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.story-choice:hover:not(:disabled),
+.story-choice:focus-visible:not(:disabled) {
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+  background: color-mix(in srgb, var(--gold) 10%, var(--raise));
+  outline: none;
+}
+
+.story-choice:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.story-choice em {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+.daily-mission-done {
+  margin-top: 12px;
+}
+
 .ninja-vaults {
   margin-top: 14px;
   display: grid;

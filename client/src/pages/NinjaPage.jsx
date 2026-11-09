@@ -77,6 +77,9 @@ export function NinjaPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [selectedJutsuId, setSelectedJutsuId] = useState(null);
   const [openPanel, setOpenPanel] = useState(null);
+  const [storyOpen, setStoryOpen] = useState(false);
+  const [dailyOpen, setDailyOpen] = useState(false);
+  const [dailyDismissed, setDailyDismissed] = useState(false);
   const [abilityOpen, setAbilityOpen] = useState(false);
   const [abilityTab, setAbilityTab] = useState('elemento');
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
@@ -288,6 +291,41 @@ export function NinjaPage() {
   const currentChapter = story?.chapters?.[story.currentIndex];
   const chapterCount = story?.chapters?.length || 0;
   const chapterNumber = story ? (story.currentIndex || 0) + 1 : 0;
+  const activeBeat = story?.activeBeat || null;
+  const dailyMission = ninja?.dailyMission || null;
+  const jutsuOwned = (ninja?.learnedJutsuIds || []).length > 0;
+
+  useEffect(() => {
+    if (!dailyMission || dailyDismissed || dailyOpen || storyOpen) return;
+    if (dailyMission.status === 'pending' && dailyMission.narrative) {
+      setDailyOpen(true);
+    }
+  }, [dailyMission, dailyDismissed, dailyOpen, storyOpen]);
+
+  async function advanceStory() {
+    setStoryOpen(true);
+    const payload = await run(() => api('/api/ninja/story/advance', { method: 'POST', body: {} }));
+    if (!payload) setStoryOpen(false);
+  }
+
+  async function chooseStory(choiceId) {
+    const payload = await run(() => api('/api/ninja/story/choose', {
+      method: 'POST',
+      body: { choiceId },
+    }));
+    if (payload) setStoryOpen(false);
+  }
+
+  async function chooseDaily(choiceId) {
+    const payload = await run(() => api('/api/ninja/daily-mission/choose', {
+      method: 'POST',
+      body: { choiceId },
+    }));
+    if (payload) {
+      setDailyOpen(false);
+      setDailyDismissed(true);
+    }
+  }
 
   return (
     <main className="app with-nav app-wide">
@@ -517,6 +555,45 @@ export function NinjaPage() {
                 {' · '}
                 {story.percent || 0}%
               </p>
+              {!story.finished ? (
+                <>
+                  <ul className="story-goals-mini">
+                    {(currentChapter.goals || []).map((goal) => (
+                      <li key={goal.id} className={goal.done ? 'done' : ''}>
+                        {goal.done ? '✓' : '○'} {goal.label}
+                      </li>
+                    ))}
+                  </ul>
+                  {story.lastOutcome?.blurb ? (
+                    <p className="story-last-outcome">{story.lastOutcome.blurb}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="primary story-advance-btn"
+                    disabled={saving || (!story.canAdvance && !activeBeat)}
+                    onClick={() => {
+                      if (activeBeat) {
+                        setStoryOpen(true);
+                        return;
+                      }
+                      advanceStory();
+                    }}
+                  >
+                    {saving && storyOpen
+                      ? 'Gerando cena…'
+                      : activeBeat
+                        ? 'Continuar cena'
+                        : story.canAdvance
+                          ? 'Avançar na história'
+                          : 'Requisitos incompletos'}
+                  </button>
+                  {currentChapter.successNeedsJutsu && !jutsuOwned ? (
+                    <p className="hint">Sem jutsu, a prova não deixa você passar de capítulo.</p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="hint">Você concluiu a jornada da Folha — por enquanto.</p>
+              )}
             </section>
           ) : null}
 
@@ -1052,6 +1129,118 @@ export function NinjaPage() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {storyOpen && (activeBeat || saving) ? (
+        <div className="ninja-sheet story-sheet" role="dialog" aria-modal="true" aria-label="Cena da história">
+          <button
+            type="button"
+            className="ninja-sheet-backdrop"
+            aria-label="Fechar"
+            onClick={() => !saving && setStoryOpen(false)}
+          />
+          <div className="ninja-sheet-panel">
+            <header className="ninja-sheet-head">
+              <div>
+                <p className="nature-pick-kicker">Modo História</p>
+                <h2>{activeBeat?.chapterTitle || currentChapter?.title || 'Cena'}</h2>
+              </div>
+              <button
+                type="button"
+                className="ghost jutsu-detail-close"
+                disabled={saving}
+                onClick={() => setStoryOpen(false)}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </header>
+            <div className="ninja-sheet-body">
+              {!activeBeat && saving ? (
+                <p className="hint">A IA está montando a cena…</p>
+              ) : null}
+              {activeBeat ? (
+                <>
+                  <p className="story-narrative">{activeBeat.narrative}</p>
+                  <div className="story-choices">
+                    {(activeBeat.choices || []).map((choice) => {
+                      const locked = Boolean(choice.requiresJutsu && !jutsuOwned);
+                      return (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          className="story-choice"
+                          disabled={saving || locked}
+                          onClick={() => chooseStory(choice.id)}
+                        >
+                          <strong>{choice.label}</strong>
+                          {locked ? <em>Precisa de um jutsu</em> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {dailyOpen && dailyMission?.status === 'pending' ? (
+        <div className="ninja-sheet story-sheet" role="dialog" aria-modal="true" aria-label="Missão do dia">
+          <button
+            type="button"
+            className="ninja-sheet-backdrop"
+            aria-label="Fechar"
+            onClick={() => {
+              setDailyOpen(false);
+              setDailyDismissed(true);
+            }}
+          />
+          <div className="ninja-sheet-panel">
+            <header className="ninja-sheet-head">
+              <div>
+                <p className="nature-pick-kicker">Missão do dia</p>
+                <h2>{dailyMission.title || 'Contrato'}</h2>
+              </div>
+              <button
+                type="button"
+                className="ghost jutsu-detail-close"
+                onClick={() => {
+                  setDailyOpen(false);
+                  setDailyDismissed(true);
+                }}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </header>
+            <div className="ninja-sheet-body">
+              <p className="story-narrative">{dailyMission.narrative}</p>
+              <div className="story-choices">
+                {(dailyMission.choices || []).map((choice) => (
+                  <button
+                    key={choice.id}
+                    type="button"
+                    className="story-choice"
+                    disabled={saving || choice.locked}
+                    onClick={() => chooseDaily(choice.id)}
+                  >
+                    <strong>{choice.label}</strong>
+                    {choice.locked ? <em>Precisa de um jutsu</em> : null}
+                  </button>
+                ))}
+              </div>
+              <p className="hint">Uma missão por dia. Escolha certa rende pts ou chakra.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {dailyMission?.status === 'completed' && dailyMission.outcomeBlurb && !dailyOpen ? (
+        <p className="hint daily-mission-done">
+          Missão do dia: {dailyMission.outcomeBlurb}
+        </p>
       ) : null}
 
       <AppNav />
