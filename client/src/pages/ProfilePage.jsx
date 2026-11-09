@@ -40,7 +40,7 @@ function measuresFromProfile(measures) {
 }
 
 export function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const date = todayISO();
   const [body, setBody] = useState(null);
   const [kg, setKg] = useState('');
@@ -53,6 +53,9 @@ export function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
   const [avatarHint, setAvatarHint] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -155,6 +158,27 @@ export function ProfilePage() {
       setError(err.message || 'Não foi possível atualizar a foto do personagem.');
     } finally {
       setGeneratingAvatar(false);
+    }
+  }
+
+  async function confirmDeleteAccount(event) {
+    event.preventDefault();
+    if (!deletePassword.trim()) {
+      setError('Informe a senha para excluir a conta.');
+      return;
+    }
+    const confirmed = window.confirm(
+      'Excluir a conta remove perfil, hábitos, pesos, treinos e progresso ninja. Essa ação não pode ser desfeita.',
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await deleteAccount(deletePassword);
+    } catch (err) {
+      setError(err.message || 'Não foi possível excluir a conta.');
+      setDeleting(false);
     }
   }
 
@@ -345,6 +369,61 @@ export function ProfilePage() {
               </>
             ) : (
               <p className="hint">Ainda sem peso anotado. O corpo 3D muda quando houver peso e altura.</p>
+            )}
+          </section>
+
+          <section className="plan-block account-danger">
+            <h2>Conta</h2>
+            <p className="hint">
+              Excluir a conta remove seu perfil, hábitos, pesos, treinos e progresso ninja de forma permanente.
+            </p>
+            {!deleteOpen ? (
+              <button
+                type="button"
+                className="ghost danger-action"
+                disabled={saving || generatingAvatar || deleting}
+                onClick={() => {
+                  setDeleteOpen(true);
+                  setDeletePassword('');
+                  setError('');
+                }}
+              >
+                Excluir conta
+              </button>
+            ) : (
+              <form className="profile-form" onSubmit={confirmDeleteAccount}>
+                <label className="field" htmlFor="delete-password">
+                  <span>Digite sua senha para confirmar</span>
+                  <input
+                    id="delete-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={deletePassword}
+                    onChange={(event) => setDeletePassword(event.target.value)}
+                    required
+                  />
+                </label>
+                <div className="edit-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={deleting}
+                    onClick={() => {
+                      setDeleteOpen(false);
+                      setDeletePassword('');
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="danger-confirm"
+                    disabled={deleting || !deletePassword.trim()}
+                  >
+                    {deleting ? 'Excluindo…' : 'Excluir definitivamente'}
+                  </button>
+                </div>
+              </form>
             )}
           </section>
         </>
