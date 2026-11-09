@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { User } from '../models/User.js';
 import { WeightEntry } from '../models/WeightEntry.js';
-import { isIsoDate } from '../lib/dates.js';
+import { isIsoDate, todayISO } from '../lib/dates.js';
 import { dayFlagsForUser } from '../lib/ninjaDayFlags.js';
 import {
   catalogForUser,
@@ -89,14 +89,19 @@ router.post('/sync', async (req, res, next) => {
 
 router.post('/story/advance', async (req, res, next) => {
   try {
+    const date = isIsoDate(req.body?.date) ? req.body.date : todayISO();
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
     const n = ensureNinja(user);
-    const result = await startStoryBeat(n, { displayName: user.name });
+    const result = await startStoryBeat(n, { displayName: user.name, today: date });
     if (!result.ok) return res.status(400).json({ error: result.error });
     user.markModified('ninja');
     await user.save();
-    res.json(buildPayload(user, [{ type: 'story-advance', reused: Boolean(result.reused) }]));
+    res.json(buildPayload(user, [{
+      type: 'story-advance',
+      reused: Boolean(result.reused),
+      fromCache: Boolean(result.fromCache),
+    }]));
   } catch (error) {
     next(error);
   }
@@ -106,12 +111,13 @@ router.post('/story/choose', async (req, res, next) => {
   try {
     const choiceId = String(req.body?.choiceId || '').trim();
     if (!choiceId) return res.status(400).json({ error: 'Informe a escolha.' });
+    const date = isIsoDate(req.body?.date) ? req.body.date : todayISO();
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
     const n = ensureNinja(user);
     const lookBefore = avatarLookKeyFromNinja(n);
-    const result = chooseStoryOption(n, choiceId);
+    const result = chooseStoryOption(n, choiceId, { today: date });
     if (result.error) return res.status(400).json({ error: result.error });
 
     user.markModified('ninja');

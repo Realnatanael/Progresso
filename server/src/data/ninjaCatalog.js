@@ -294,6 +294,8 @@ export function defaultNinjaState() {
     story: {
       completedChapterIds: [],
       activeBeat: null,
+      cachedBeat: null,
+      retryAfter: null,
       lastOutcome: null,
       choiceHistory: [],
     },

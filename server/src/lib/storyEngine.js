@@ -4,6 +4,7 @@ import {
   chapterById,
   ensureStoryState,
 } from '../data/storyRoadmap.js';
+import { shiftDate, todayISO } from './dates.js';
 import { generateStoryBeatJson } from './geminiStory.js';
 import { applyRankUps } from './ninjaProgress.js';
 
@@ -27,7 +28,7 @@ export function storyContext(n) {
   };
 }
 
-export function canStartStoryBeat(n) {
+export function canStartStoryBeat(n, today = todayISO()) {
   const { chapter, jutsuCount } = storyContext(n);
   if (!chapter) return { ok: false, error: 'Você já concluiu toda a jornada.' };
   if (n.story.activeBeat) return { ok: true, reuse: true };
@@ -36,14 +37,24 @@ export function canStartStoryBeat(n) {
   if (!goalsOk) return { ok: false, error: 'Ainda faltam requisitos deste capítulo.' };
 
   const need = chapter.advanceRequiresJutsus || 0;
+  // Provas que pedem jutsu podem ser tentadas sem técnica — a cena trava o avanço.
   if (jutsuCount < need && !chapter.successNeedsJutsu) {
     return { ok: false, error: `Aprenda pelo menos ${need} jutsu(s) antes de avançar.` };
   }
+
+  if (n.story.retryAfter && n.story.retryAfter > today) {
+    return {
+      ok: false,
+      error: 'Você já tentou esta cena hoje. Volte amanhã pra tentar de novo.',
+      retryAfter: n.story.retryAfter,
+    };
+  }
+
   return { ok: true, reuse: false };
 }
 
-export async function startStoryBeat(n, { displayName } = {}) {
-  const gate = canStartStoryBeat(n);
+export async function startStoryBeat(n, { displayName, today = todayISO() } = {}) {
+  const gate = canStartStoryBeat(n, today);
   if (!gate.ok) return gate;
   if (gate.reuse && n.story.activeBeat) {
     return { ok: true, beat: n.story.activeBeat, reused: true };
@@ -53,6 +64,22 @@ export async function startStoryBeat(n, { displayName } = {}) {
   const chapter = ctx.chapter;
   const hasJutsus = ctx.jutsuCount > 0;
   const successNeedsJutsu = Boolean(chapter.successNeedsJutsu);
+
+  // Reusa a mesma cena (sem IA) se for a mesma tentativa do capítulo e o arsenal não mudou.
+  const cached = n.story.cachedBeat;
+  if (
+    cached
+    && cached.chapterId === chapter.id
+    && Number(cached.jutsuCount || 0) === ctx.jutsuCount
+  ) {
+    const beat = {
+      ...cached,
+      createdAt: cached.createdAt || new Date().toISOString(),
+    };
+    n.story.activeBeat = beat;
+    n.story.retryAfter = null;
+    return { ok: true, beat, reused: true, fromCache: true };
+  }
 
   let beat = await generateStoryBeatFromAi({
     chapter,
@@ -72,12 +99,15 @@ export async function startStoryBeat(n, { displayName } = {}) {
     successNeedsJutsu,
     jutsuNames: ctx.jutsuNames,
   });
+  beat.jutsuCount = ctx.jutsuCount;
 
   n.story.activeBeat = beat;
+  n.story.cachedBeat = beat;
+  n.story.retryAfter = null;
   return { ok: true, beat, reused: false };
 }
 
-export function chooseStoryOption(n, choiceId) {
+export function chooseStoryOption(n, choiceId, { today = todayISO() } = {}) {
   ensureStoryState(n);
   const beat = n.story.activeBeat;
   if (!beat) return { error: 'Não há cena aberta. Toque em Avançar primeiro.' };
@@ -118,6 +148,7 @@ export function chooseStoryOption(n, choiceId) {
     chapterId: beat.chapterId,
     choiceId: choice.id,
     choiceLabel: choice.label,
+    retryAfter: null,
   };
 
   n.story.lastOutcome = outcome;
@@ -140,8 +171,20 @@ export function chooseStoryOption(n, choiceId) {
     if (!n.story.completedChapterIds.includes(chapter.id)) {
       n.story.completedChapterIds.push(chapter.id);
     }
+    n.story.retryAfter = null;
+    n.story.cachedBeat = null;
     // Rank sobe só quando o capítulo de promoção foi concluído + requisitos
     applyRankUps(n);
+  } else {
+    // Falhou: trava nova geração de IA até amanhã; a mesma cena pode repetir depois.
+    const retryAfter = shiftDate(today, 1);
+    n.story.retryAfter = retryAfter;
+    outcome.retryAfter = retryAfter;
+    outcome.blurb = `${outcome.blurb} Tente de novo amanhã.`;
+    n.story.lastOutcome = outcome;
+    if (n.story.cachedBeat) {
+      n.story.cachedBeat = { ...n.story.cachedBeat, jutsuCount: beat.jutsuCount ?? (n.learnedJutsuIds || []).length };
+    }
   }
 
   return { ok: true, outcome };

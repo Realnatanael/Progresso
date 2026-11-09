@@ -39,12 +39,16 @@ export function ensureNinja(user) {
     n.story = {
       completedChapterIds: [],
       activeBeat: null,
+      cachedBeat: null,
+      retryAfter: null,
       lastOutcome: null,
       choiceHistory: [],
     };
   }
   if (!Array.isArray(n.story.completedChapterIds)) n.story.completedChapterIds = [];
   if (!Array.isArray(n.story.choiceHistory)) n.story.choiceHistory = [];
+  if (n.story.cachedBeat === undefined) n.story.cachedBeat = null;
+  if (n.story.retryAfter === undefined) n.story.retryAfter = null;
   if (n.dailyMission === undefined) n.dailyMission = null;
 
   // Clã = sobrenome da pessoa
