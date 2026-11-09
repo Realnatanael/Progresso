@@ -8,7 +8,7 @@ useGLTF.preload('/models/sg-male.glb');
 useGLTF.preload('/models/sg-female.glb');
 
 /** Bumpe quando pose/morph local mudar, para reclonar o skeleton no HMR. */
-const STANCE_REV = 36;
+const STANCE_REV = 37;
 
 const RECOVERY_GLOW = {
   red: new THREE.Color('#e84a3c'),
@@ -299,8 +299,8 @@ function prepareMuscleData(root) {
         boneSpace.copy(tmp).applyMatrix4(obj.bindMatrix).applyMatrix4(skeleton.boneInverses[chestBoneIdx]);
         const ax = Math.abs(tmp.x);
         const front = smoothstep(0.016, 0.05, tmp.z);
-        // faixa vertical original (inclui a parte de cima)
-        const vertical = smoothstep(-0.11, -0.04, boneSpace.y) * (1 - smoothstep(0.095, 0.145, boneSpace.y));
+        // um pouco menos alto perto do pescoço
+        const vertical = smoothstep(-0.11, -0.04, boneSpace.y) * (1 - smoothstep(0.078, 0.125, boneSpace.y));
         // um pouco mais largo que o original, sem baixar o peito
         const plate = smoothstep(0.005, 0.014, ax) * (1 - smoothstep(0.108, 0.145, ax));
         const lateral = smoothstep(0.02, 0.07, ax);
