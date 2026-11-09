@@ -1119,6 +1119,68 @@ a { color: var(--gold); }
 }
 
 /* —— Ninja / gamificação —— */
+.ninja-identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px;
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.ninja-identity-text {
+  min-width: 0;
+}
+
+.ninja-identity .date {
+  margin-bottom: 6px;
+}
+
+.ninja-identity h1 {
+  margin: 0;
+  line-height: 1.15;
+}
+
+.ninja-clan {
+  margin: 6px 0 0;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  color: var(--ink);
+  opacity: 0.92;
+}
+
+.ninja-pts {
+  margin: 8px 0 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.ninja-crest {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(226, 162, 58, 0.12), transparent 55%),
+    rgba(12, 10, 8, 0.35);
+  flex-shrink: 0;
+}
+
+.ninja-crest img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ninja-crest-placeholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(226, 162, 58, 0.22), transparent 58%),
+    rgba(20, 16, 12, 0.4);
+}
+
 .ninja-stage {
   display: grid;
   gap: 14px;

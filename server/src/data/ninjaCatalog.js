@@ -294,6 +294,8 @@ export function defaultNinjaState() {
     avatarReady: false,
     avatarUpdatedAt: null,
     avatarLookKey: null,
+    crestClanKey: null,
+    crestUpdatedAt: null,
     story: {
       completedChapterIds: [],
       activeBeat: null,

@@ -52,6 +52,8 @@ export function ensureNinja(user) {
   if (n.story.cachedBeat === undefined) n.story.cachedBeat = null;
   if (n.story.retryAfter === undefined) n.story.retryAfter = null;
   if (n.dailyMission === undefined) n.dailyMission = null;
+  if (n.crestClanKey === undefined) n.crestClanKey = null;
+  if (n.crestUpdatedAt === undefined) n.crestUpdatedAt = null;
 
   // Clã = sobrenome da pessoa
   const surname = surnameFromFullName(user.name);
@@ -106,6 +108,8 @@ export function publicNinja(user) {
     avatarReady: Boolean(n.avatarReady),
     avatarUrl: n.avatarReady ? '/api/ninja/avatar' : null,
     avatarUpdatedAt: n.avatarUpdatedAt || null,
+    crestUrl: n.crestClanKey ? '/api/ninja/crest' : null,
+    crestUpdatedAt: n.crestUpdatedAt || user.ninjaCrestUpdatedAt || null,
     activeEye: resolveActiveEye(n),
     affinityRollCost: AFFINITY_ROLL_COST,
     canAffinityRoll: (n.natures || []).length === 0

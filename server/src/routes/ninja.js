@@ -23,6 +23,7 @@ import {
   avatarLookKeyFromNinja,
 } from '../lib/ninjaAvatarLook.js';
 import { maybeRefreshNinjaAvatar } from '../lib/ninjaAvatarRefresh.js';
+import { ensureClanCrest } from '../lib/ninjaClanCrest.js';
 import { chooseDailyMission, ensureDailyMission } from '../lib/dailyMission.js';
 import { chooseStoryOption, startStoryBeat } from '../lib/storyEngine.js';
 
@@ -54,6 +55,8 @@ router.get('/', async (req, res, next) => {
       }
       user.markModified('ninja');
       await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    } else {
+      await saveNinjaWithCrest(user);
     }
 
     res.json(buildPayload(user, changes));
@@ -298,6 +301,27 @@ router.get('/avatar', async (req, res, next) => {
   }
 });
 
+router.get('/crest', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select('+ninjaCrestData +ninjaCrestMime');
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    ensureNinja(user);
+    const crest = await ensureClanCrest(user);
+    if (!crest.cached && crest.ensured) {
+      await user.save();
+    }
+    if (!user.ninjaCrestData?.length) {
+      return res.status(404).json({ error: 'Brasão ainda não gerado.' });
+    }
+    res.setHeader('Content-Type', user.ninjaCrestMime || 'image/svg+xml');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return res.send(user.ninjaCrestData);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post('/avatar', async (req, res, next) => {
   try {
     const photoBase64 = String(req.body?.photoBase64 || '').replace(/^data:[^;]+;base64,/, '').trim();
@@ -349,6 +373,11 @@ router.post('/avatar', async (req, res, next) => {
     n.avatarUpdatedAt = new Date();
     n.avatarLookKey = avatarLookKey(look);
     user.markModified('ninja');
+    try {
+      await ensureClanCrest(user);
+    } catch (crestError) {
+      console.error('Brasão após avatar:', crestError?.message || crestError);
+    }
     await user.save();
 
     res.json(buildPayload(user, [{ type: recreating ? 'avatar-refresh' : 'avatar' }]));
@@ -401,7 +430,27 @@ async function saveNinjaWithAvatarRefresh(user, lookBefore, changes) {
       changes.push({ type: 'avatar-refresh-failed' });
     }
   }
+  try {
+    const crest = await ensureClanCrest(user);
+    if (crest.ensured && !crest.cached) {
+      changes.push({ type: 'clan-crest' });
+    }
+  } catch (error) {
+    console.error('Falha ao gerar brasão do clã:', error?.message || error);
+    changes.push({ type: 'clan-crest-failed' });
+  }
   await user.save();
+}
+
+async function saveNinjaWithCrest(user) {
+  try {
+    const crest = await ensureClanCrest(user);
+    if (crest.ensured && !crest.cached) {
+      await user.save();
+    }
+  } catch (error) {
+    console.error('Falha ao gerar brasão do clã:', error?.message || error);
+  }
 }
 
 export default router;
