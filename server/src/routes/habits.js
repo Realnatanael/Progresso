@@ -288,14 +288,15 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 function readHabitFields(body) {
-  const title = String(body?.title || '').trim();
-  if (!title || title.length > 80) {
-    return { error: 'Dê um nome ao hábito, com até 80 caracteres.' };
-  }
-
   const kind = body?.kind === undefined || body?.kind === '' ? 'check' : body.kind;
   if (kind !== 'check' && kind !== 'water' && kind !== 'exercise') {
     return { error: 'Escolha o tipo do hábito.' };
+  }
+
+  let title = String(body?.title || '').trim();
+  if (kind === 'water') title = title || 'Água';
+  if (!title || title.length > 80) {
+    return { error: 'Dê um nome ao hábito, com até 80 caracteres.' };
   }
 
   if (kind === 'check' || kind === 'exercise') return { value: { title, kind, goalMl: null } };

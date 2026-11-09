@@ -29,14 +29,21 @@ export function HabitCard({ habit, date, onChange }) {
     setEditing(true);
   }
 
+  function chooseKind(next) {
+    setKind(next);
+    if (next === 'water') setName('Água');
+  }
+
   async function saveEdit(event) {
     event.preventDefault();
+    const nextTitle = kind === 'water' ? 'Água' : name.trim();
+    if (kind !== 'water' && !nextTitle) return;
     setSaving(true);
     setError('');
     try {
       const data = await api(`/api/habits/${habit.id}`, {
         method: 'PATCH',
-        body: { date, title: name, kind, goalLiters: goal },
+        body: { date, title: nextTitle, kind, goalLiters: goal },
       });
       onChange(data);
       setEditing(false);
@@ -135,11 +142,7 @@ export function HabitCard({ habit, date, onChange }) {
       <div className="habit-body">
         {editing ? (
           <form className="edit" onSubmit={saveEdit}>
-            <label className="field">
-              <span>Nome</span>
-              <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} required />
-            </label>
-            <KindPicker kind={kind} onChange={setKind} />
+            <KindPicker kind={kind} onChange={chooseKind} />
             {kind === 'water' ? (
               <label className="field">
                 <span>Meta do dia, em litros</span>
@@ -151,14 +154,25 @@ export function HabitCard({ habit, date, onChange }) {
                   required
                 />
               </label>
-            ) : null}
+            ) : (
+              <label className="field">
+                <span>Nome</span>
+                <input value={name} maxLength={80} onChange={(event) => setName(event.target.value)} required />
+              </label>
+            )}
             {kind !== habit.kind ? (
               <p className="hint">Mudar o tipo apaga o histórico deste hábito.</p>
             ) : null}
             {error ? <p className="alert" role="alert">{error}</p> : null}
             <div className="edit-actions">
               <button className="ghost" type="button" onClick={() => setEditing(false)} disabled={saving}>Cancelar</button>
-              <button className="primary" type="submit" disabled={saving || !name.trim()}>Salvar</button>
+              <button
+                className="primary"
+                type="submit"
+                disabled={saving || (kind === 'water' ? !goal.trim() : !name.trim())}
+              >
+                Salvar
+              </button>
             </div>
           </form>
         ) : (

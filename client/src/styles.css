@@ -566,6 +566,38 @@ a { color: var(--gold); }
   border: 1px solid var(--line);
 }
 
+.add-habit {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  margin-bottom: 8px;
+  padding: 14px 16px;
+  border-radius: 999px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.add-habit:hover,
+.add-habit:focus-visible {
+  color: var(--ink);
+  border-color: var(--gold);
+  outline: none;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  align-items: center;
+}
+
+.composer-actions .primary { padding: 10px 16px; }
+
 .sr {
   position: absolute;
   width: 1px;

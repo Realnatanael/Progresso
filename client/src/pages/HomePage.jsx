@@ -14,10 +14,13 @@ function formatToday() {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+const WATER_TITLE = 'Água';
+
 export function HomePage() {
   const { user, logout } = useAuth();
   const date = todayISO();
   const [board, setBoard] = useState(null);
+  const [composing, setComposing] = useState(false);
   const [title, setTitle] = useState('');
   const [kind, setKind] = useState('check');
   const [goal, setGoal] = useState('');
@@ -47,10 +50,23 @@ export function HomePage() {
     syncNinja(date);
   }
 
+  function resetComposer() {
+    setTitle('');
+    setKind('check');
+    setGoal('');
+    setComposing(false);
+  }
+
+  function chooseKind(next) {
+    setKind(next);
+    if (next === 'water') setTitle('');
+  }
+
   async function addHabit(event) {
     event.preventDefault();
-    const nextTitle = title.trim();
-    if (!nextTitle) return;
+    const nextTitle = kind === 'water' ? WATER_TITLE : title.trim();
+    if (kind !== 'water' && !nextTitle) return;
+    if (kind === 'water' && !goal.trim()) return;
     setError('');
     setSaving(true);
     try {
@@ -59,9 +75,7 @@ export function HomePage() {
         body: { title: nextTitle, date, kind, goalLiters: goal },
       });
       setBoard(data);
-      setTitle('');
-      setKind('check');
-      setGoal('');
+      resetComposer();
       syncNinja(date);
     } catch (err) {
       setError(err.message);
@@ -74,7 +88,7 @@ export function HomePage() {
   const doneCount = board?.doneCount ?? 0;
   const total = board?.total ?? 0;
   const dayClosed = total > 0 && doneCount === total;
-  const canAdd = title.trim() && (kind !== 'water' || goal.trim()) && !saving;
+  const canAdd = (kind === 'water' ? goal.trim() : title.trim()) && !saving;
 
   return (
     <main className="app with-nav">
@@ -112,35 +126,51 @@ export function HomePage() {
         ))}
       </ul>
 
-      <form className="composer" onSubmit={addHabit}>
-        <label className="sr" htmlFor="new-habit">Novo hábito</label>
-        <input
-          id="new-habit"
-          value={title}
-          maxLength={80}
-          placeholder="Novo hábito"
-          onChange={(event) => setTitle(event.target.value)}
-        />
-        <KindPicker kind={kind} onChange={setKind} />
-        {kind === 'water' ? (
-          <label className="field" htmlFor="new-goal">
-            <span>Meta do dia, em litros</span>
-            <input
-              id="new-goal"
-              inputMode="decimal"
-              placeholder="2,5"
-              value={goal}
-              onChange={(event) => setGoal(event.target.value)}
-            />
-          </label>
-        ) : null}
-        {kind === 'exercise' ? (
-          <p className="hint">Os dias e os exercícios ficam em Corpo.</p>
-        ) : null}
-        <button className="primary" type="submit" disabled={!canAdd}>
-          {saving ? 'Adicionando…' : 'Adicionar'}
+      {composing ? (
+        <form className="composer" onSubmit={addHabit}>
+          <KindPicker kind={kind} onChange={chooseKind} />
+          {kind === 'water' ? (
+            <label className="field" htmlFor="new-goal">
+              <span>Meta do dia, em litros</span>
+              <input
+                id="new-goal"
+                inputMode="decimal"
+                placeholder="2,5"
+                value={goal}
+                onChange={(event) => setGoal(event.target.value)}
+                autoFocus
+              />
+            </label>
+          ) : (
+            <>
+              <label className="sr" htmlFor="new-habit">Novo hábito</label>
+              <input
+                id="new-habit"
+                value={title}
+                maxLength={80}
+                placeholder="Novo hábito"
+                onChange={(event) => setTitle(event.target.value)}
+                autoFocus
+              />
+            </>
+          )}
+          {kind === 'exercise' ? (
+            <p className="hint">Os dias e os exercícios ficam em Corpo.</p>
+          ) : null}
+          <div className="composer-actions">
+            <button className="ghost" type="button" onClick={resetComposer} disabled={saving}>
+              Cancelar
+            </button>
+            <button className="primary" type="submit" disabled={!canAdd}>
+              {saving ? 'Adicionando…' : 'Adicionar'}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button className="add-habit" type="button" onClick={() => setComposing(true)}>
+          Novo hábito
         </button>
-      </form>
+      )}
       <AppNav />
     </main>
   );
