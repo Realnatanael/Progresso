@@ -77,6 +77,7 @@ export function NinjaPage() {
   const [abilityOpen, setAbilityOpen] = useState(false);
   const [abilityTab, setAbilityTab] = useState('elemento');
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [avatarVisible, setAvatarVisible] = useState(true);
   const galleryInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
@@ -158,6 +159,10 @@ export function NinjaPage() {
   const catalog = data?.catalog || [];
   const pending = ninja?.pendingStatPick?.date === date;
   const unlocked = Boolean(ninja?.avatarReady);
+
+  useEffect(() => {
+    setAvatarVisible(true);
+  }, [ninja?.avatarUrl, ninja?.avatarUpdatedAt]);
 
   const firstNatures = useMemo(
     () => catalog.filter((item) => item.kind === 'nature' && item.firstNatureOnly && !item.owned),
@@ -300,11 +305,12 @@ export function NinjaPage() {
   const jutsuOwned = (ninja?.learnedJutsuIds || []).length > 0;
 
   useEffect(() => {
-    if (!dailyMission || dailyDismissed || dailyOpen || storyOpen) return;
+    // Só após o personagem existir — senão a missão tapa a criação de avatar.
+    if (!unlocked || !dailyMission || dailyDismissed || dailyOpen || storyOpen) return;
     if (dailyMission.status === 'pending' && dailyMission.narrative) {
       setDailyOpen(true);
     }
-  }, [dailyMission, dailyDismissed, dailyOpen, storyOpen]);
+  }, [unlocked, dailyMission, dailyDismissed, dailyOpen, storyOpen]);
 
   async function advanceStory() {
     setStoryOpen(true);
@@ -429,11 +435,20 @@ export function NinjaPage() {
 
           <section className="ninja-stage">
             <div className={`ninja-avatar rank-${ninja.rank}${generatingAvatar ? ' is-generating' : ''}`}>
-              <img
-                className="ninja-avatar-img"
-                src={`${ninja.avatarUrl}?t=${encodeURIComponent(ninja.avatarUpdatedAt || '')}`}
-                alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
-              />
+              {avatarVisible ? (
+                <img
+                  className="ninja-avatar-img"
+                  src={`${ninja.avatarUrl}?t=${encodeURIComponent(ninja.avatarUpdatedAt || '')}`}
+                  alt={`Personagem ninja de ${ninja.displayName || 'você'}`}
+                  onLoad={(event) => {
+                    const { naturalWidth: w, naturalHeight: h } = event.currentTarget;
+                    // Evita “bloco” esticado quando a imagem gerada falhou / ficou minúscula.
+                    if (w < 48 || h < 48) setAvatarVisible(false);
+                    else setAvatarVisible(true);
+                  }}
+                  onError={() => setAvatarVisible(false)}
+                />
+              ) : null}
               <p className="ninja-rank-badge">{ninja.rankLabel}</p>
               {ninja.activeEye?.name ? (
                 <p className="ninja-eye-badge">{ninja.activeEye.name}</p>
@@ -1219,7 +1234,7 @@ export function NinjaPage() {
         </div>
       ) : null}
 
-      {dailyOpen && dailyMission?.status === 'pending' ? (
+      {unlocked && dailyOpen && dailyMission?.status === 'pending' ? (
         <div className="ninja-sheet story-sheet" role="dialog" aria-modal="true" aria-label="Missão do dia">
           <button
             type="button"
@@ -1270,7 +1285,7 @@ export function NinjaPage() {
         </div>
       ) : null}
 
-      {dailyMission?.status === 'completed' && dailyMission.outcomeBlurb && !dailyOpen ? (
+      {unlocked && dailyMission?.status === 'completed' && dailyMission.outcomeBlurb && !dailyOpen ? (
         <p className="hint daily-mission-done">
           Missão do dia: {dailyMission.outcomeBlurb}
         </p>

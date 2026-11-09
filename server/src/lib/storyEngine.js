@@ -234,6 +234,145 @@ async function generateStoryBeatFromAi({
   }
 }
 
+/** Cenas escritas à mão quando a Gemini falha — evita o mesmo texto genérico em todo capítulo. */
+const CHAPTER_FALLBACKS = {
+  academy_day_one: {
+    narrative:
+      'Os Portões Aun se abrem ao sol da manhã. Iruka passa lista; um colega ri do seu sobrenome. O pátio cheira a madeira nova e nervosismo.',
+    choices: [
+      {
+        id: 'a',
+        label: 'Responder firme e se apresentar',
+        outcome: 'advance',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Iruka sorri de canto. Você entra na turma de cabeça erguida.',
+      },
+      {
+        id: 'b',
+        label: 'Ficar em silêncio no fundo',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'Ninguém te nota. O primeiro dia termina sem marcar presença.',
+      },
+      {
+        id: 'c',
+        label: 'Ajudar um aluno perdido a achar a sala',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Faz um amigo, mas a chamada oficial ainda te espera amanhã.',
+      },
+    ],
+  },
+  academy_basics: {
+    narrative:
+      'Iruka bate o giz no quadro: bunshin, henge, kawarimi. “Quem não tentar, não forma.” Selos ecoam pela sala.',
+    choices: [
+      {
+        id: 'a',
+        label: 'Demonstrar o clone com calma',
+        outcome: 'advance',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'O clone treme, mas segura. Iruka anota: progresso.',
+      },
+      {
+        id: 'b',
+        label: 'Errar o selo e travar',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'Fumaça demais, técnica de menos. Treine e volte.',
+      },
+      {
+        id: 'c',
+        label: 'Treinar kawarimi no corredor depois',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Você melhora sozinho, mas a aula oficial ainda não fecha.',
+      },
+    ],
+  },
+  academy_rival: {
+    narrative:
+      'No pátio, um rival te empurra o ombro: “Academia não é brincadeira de clã.” O sensei observa de longe, sem interferir… ainda.',
+    choices: [
+      {
+        id: 'a',
+        label: 'Aceitar o sparring e manter a guarda',
+        outcome: 'advance',
+        reward: { chakra: 1 },
+        resultBlurb: 'Você aguenta a pressão. O rival recua; o sensei anui.',
+      },
+      {
+        id: 'b',
+        label: 'Ignorar e ir embora',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'A provocação fica no ar. Sem confronto, o capítulo não anda.',
+      },
+      {
+        id: 'c',
+        label: 'Provocar de volta sem lutar',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Ganha respeito verbal, mas o pátio ainda espera um sparring de verdade.',
+      },
+    ],
+  },
+  team_assignment: {
+    narrative:
+      'Na sala do Hokage, os nomes são lidos. Seu time se forma; um Jounin de máscara cruzada aparece no telhado e só diz: “Sigam-me.”',
+    choices: [
+      {
+        id: 'a',
+        label: 'Seguir o sensei sem hesitar',
+        outcome: 'advance',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Você sobe no telhado. O time começa de verdade.',
+      },
+      {
+        id: 'b',
+        label: 'Questionar a escolha dos colegas',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'O sensei some. Sem confiança no time, a missão não sai.',
+      },
+      {
+        id: 'c',
+        label: 'Cumprimentar cada um antes de sair',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Clima melhor, mas o Jounin já foi embora — remarque o encontro.',
+      },
+    ],
+  },
+  d_missions: {
+    narrative:
+      'Quadro Rank D: gato perdido, cerca torta, compras da vovó. Seu sensei ri. “Todo Hokage começou assim.”',
+    choices: [
+      {
+        id: 'a',
+        label: 'Pegar a missão do gato e cumprir direito',
+        outcome: 'advance',
+        reward: { unlockPoints: 2 },
+        resultBlurb: 'Gato resgatado, aldeão feliz. Carimbo no relatório.',
+      },
+      {
+        id: 'b',
+        label: 'Recusar e exigir missão “de verdade”',
+        outcome: 'stuck',
+        reward: {},
+        resultBlurb: 'Sensei encolhe os ombros. Sem Rank D, não há Rank C.',
+      },
+      {
+        id: 'c',
+        label: 'Dividir as tarefas com o time',
+        outcome: 'reward_only',
+        reward: { unlockPoints: 1 },
+        resultBlurb: 'Bom espírito de equipe — ainda falta fechar o relatório oficial.',
+      },
+    ],
+  },
+};
+
 function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
   const jutsu = ctx.jutsuNames[0] || 'seu jutsu';
   const base = chapter.sceneHint || chapter.blurb;
@@ -302,8 +441,19 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
     };
   }
 
+  const scripted = CHAPTER_FALLBACKS[chapter.id];
+  if (scripted) {
+    return {
+      narrative: scripted.narrative,
+      choices: scripted.choices.map((choice) => ({
+        ...choice,
+        reward: choice.reward || {},
+      })),
+    };
+  }
+
   return {
-    narrative: `${base} Três caminhos se abrem — escolha com cuidado.`,
+    narrative: `${chapter.blurb} ${base}`,
     choices: [
       {
         id: 'a',
@@ -319,7 +469,7 @@ function fallbackStoryBeat({ chapter, ctx, hasJutsus, successNeedsJutsu }) {
         outcome: 'stuck',
         requiresJutsu: false,
         reward: {},
-        resultBlurb: 'A oportunidade passa. Continue treinado e tente de novo.',
+        resultBlurb: 'A oportunidade passa. Continue treinando e tente de novo.',
       },
       {
         id: 'c',
