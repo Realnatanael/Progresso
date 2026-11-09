@@ -69,6 +69,10 @@ export function NinjaPage() {
   const [tierFilter, setTierFilter] = useState('all');
   const [natureFilter, setNatureFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [jutsuQuery, setJutsuQuery] = useState('');
+  const [sortBy, setSortBy] = useState('tier');
+  const [groupBy, setGroupBy] = useState('category');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedJutsuId, setSelectedJutsuId] = useState(null);
   const [openPanel, setOpenPanel] = useState(null);
   const [storyOpen, setStoryOpen] = useState(false);
@@ -228,6 +232,14 @@ export function NinjaPage() {
     )),
     [catalog],
   );
+  const learnedJutsus = useMemo(
+    () => catalog.filter((item) => (
+      item.owned
+      && item.kind === 'jutsu'
+      && !PATH_JUTSU_CATEGORIES.has(item.category)
+    )),
+    [catalog],
+  );
   const available = useMemo(
     () => learnable.filter((item) => item.canUnlock),
     [learnable],
@@ -237,39 +249,105 @@ export function NinjaPage() {
     [learnable],
   );
 
-  const statusPool = filter === 'locked' ? locked : filter === 'all' ? learnable : available;
+  const statusPool = filter === 'owned'
+    ? learnedJutsus
+    : filter === 'locked'
+      ? locked
+      : filter === 'all'
+        ? learnable
+        : available;
+
+  const myNatureIds = useMemo(
+    () => [...(ninja?.natures || [])],
+    [ninja?.natures],
+  );
 
   const natureOptions = useMemo(() => {
     const ids = new Set();
     let hasUniversal = false;
-    for (const item of learnable) {
+    for (const item of [...learnable, ...learnedJutsus]) {
       const natures = item.requiresNatures || [];
       if (natures.length === 0) hasUniversal = true;
       natures.forEach((id) => ids.add(id));
     }
-    const sorted = [...ids].sort((a, b) => (
-      (NATURE_SHORT[a] || a).localeCompare(NATURE_SHORT[b] || b, 'pt')
-    ));
-    return { hasUniversal, sorted };
-  }, [learnable]);
+    const mine = myNatureIds.filter((id) => ids.has(id));
+    const rest = [...ids]
+      .filter((id) => !mine.includes(id))
+      .sort((a, b) => (
+        (NATURE_SHORT[a] || a).localeCompare(NATURE_SHORT[b] || b, 'pt')
+      ));
+    return { hasUniversal, mine, rest, sorted: [...mine, ...rest] };
+  }, [learnable, learnedJutsus, myNatureIds]);
 
   const categoryOptions = useMemo(() => {
-    const ids = new Set(learnable.map((item) => item.category).filter(Boolean));
+    const ids = new Set(
+      [...learnable, ...learnedJutsus].map((item) => item.category).filter(Boolean),
+    );
     return [...ids].sort((a, b) => (
       (CATEGORY_LABEL[a] || a).localeCompare(CATEGORY_LABEL[b] || b, 'pt')
     ));
-  }, [learnable]);
+  }, [learnable, learnedJutsus]);
 
   const listToShow = useMemo(() => {
-    return statusPool.filter((item) => {
+    const q = jutsuQuery.trim().toLowerCase();
+    const filtered = statusPool.filter((item) => {
       if (tierFilter !== 'all' && item.tier !== tierFilter) return false;
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
-      if (natureFilter === 'all') return true;
-      const natures = item.requiresNatures || [];
-      if (natureFilter === 'universal') return natures.length === 0;
-      return natures.includes(natureFilter);
+      if (natureFilter === 'mine') {
+        const natures = item.requiresNatures || [];
+        if (natures.length === 0) return true;
+        if (!myNatureIds.length) return false;
+        return natures.some((id) => myNatureIds.includes(id));
+      }
+      if (natureFilter !== 'all') {
+        const natures = item.requiresNatures || [];
+        if (natureFilter === 'universal') {
+          if (natures.length !== 0) return false;
+        } else if (!natures.includes(natureFilter)) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      const hay = [
+        item.name,
+        item.blurb,
+        item.category,
+        CATEGORY_LABEL[item.category],
+        ...(item.requiresNatures || []).map((id) => NATURE_SHORT[id] || id),
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
     });
-  }, [statusPool, tierFilter, categoryFilter, natureFilter]);
+    return [...filtered].sort((a, b) => compareJutsus(a, b, sortBy));
+  }, [
+    statusPool,
+    tierFilter,
+    categoryFilter,
+    natureFilter,
+    myNatureIds,
+    jutsuQuery,
+    sortBy,
+  ]);
+
+  const jutsuGroups = useMemo(
+    () => groupJutsus(listToShow, groupBy),
+    [listToShow, groupBy],
+  );
+
+  const activeFilterCount = [
+    tierFilter !== 'all',
+    natureFilter !== 'all',
+    categoryFilter !== 'all',
+    Boolean(jutsuQuery.trim()),
+  ].filter(Boolean).length;
+
+  function clearJutsuFilters() {
+    setTierFilter('all');
+    setNatureFilter('all');
+    setCategoryFilter('all');
+    setJutsuQuery('');
+    setSortBy('tier');
+    setGroupBy('category');
+  }
 
   useEffect(() => {
     if (!selectedJutsuId) return;
@@ -1030,8 +1108,19 @@ export function NinjaPage() {
                 </p>
               )}
 
+              <label className="jutsu-search">
+                <span className="visually-hidden">Buscar jutsu</span>
+                <input
+                  type="search"
+                  value={jutsuQuery}
+                  onChange={(event) => setJutsuQuery(event.target.value)}
+                  placeholder="Buscar por nome, tipo ou elemento…"
+                  autoComplete="off"
+                />
+              </label>
+
               <div className="jutsu-filter-block" role="group" aria-label="Disponibilidade">
-                <div className="ninja-filters">
+                <div className="ninja-filters jutsu-status-row">
                   <button
                     type="button"
                     className={filter === 'available' ? 'primary' : 'ghost'}
@@ -1048,112 +1137,196 @@ export function NinjaPage() {
                   </button>
                   <button
                     type="button"
+                    className={filter === 'owned' ? 'primary' : 'ghost'}
+                    onClick={() => setFilter('owned')}
+                  >
+                    Aprendidos ({learnedJutsus.length})
+                  </button>
+                  <button
+                    type="button"
                     className={filter === 'all' ? 'primary' : 'ghost'}
                     onClick={() => setFilter('all')}
                   >
-                    Todos ({learnable.length})
+                    Catálogo ({learnable.length})
                   </button>
                 </div>
               </div>
 
-              <div className="jutsu-filter-block">
-                <p className="jutsu-filter-label">Ranking</p>
-                <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Ranking">
-                  <button
-                    type="button"
-                    className={tierFilter === 'all' ? 'primary' : 'ghost'}
-                    onClick={() => setTierFilter('all')}
-                  >
-                    Todos
-                  </button>
-                  {TIER_ORDER.map((tier) => (
-                    <button
-                      key={tier}
-                      type="button"
-                      className={tierFilter === tier ? 'primary' : 'ghost'}
-                      onClick={() => setTierFilter(tier)}
-                    >
-                      <span className={`jutsu-tier tier-${tier}`}>{tier}</span>
-                    </button>
-                  ))}
-                </div>
+              <div className="jutsu-toolbar">
+                <button
+                  type="button"
+                  className={`ghost jutsu-filters-toggle${filtersOpen || activeFilterCount ? ' is-active' : ''}`}
+                  onClick={() => setFiltersOpen((open) => !open)}
+                  aria-expanded={filtersOpen}
+                >
+                  Filtros{activeFilterCount ? ` · ${activeFilterCount}` : ''}
+                </button>
+                <label className="jutsu-select">
+                  <span>Ordenar</span>
+                  <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+                    <option value="tier">Ranking (E→S)</option>
+                    <option value="tier-desc">Ranking (S→E)</option>
+                    <option value="name">Nome</option>
+                    <option value="cost">Custo (pts)</option>
+                  </select>
+                </label>
+                <label className="jutsu-select">
+                  <span>Agrupar</span>
+                  <select value={groupBy} onChange={(event) => setGroupBy(event.target.value)}>
+                    <option value="category">Por tipo</option>
+                    <option value="nature">Por elemento</option>
+                    <option value="tier">Por ranking</option>
+                    <option value="none">Lista contínua</option>
+                  </select>
+                </label>
               </div>
 
-              <div className="jutsu-filter-block">
-                <p className="jutsu-filter-label">Elemento</p>
-                <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Elemento">
-                  <button
-                    type="button"
-                    className={natureFilter === 'all' ? 'primary' : 'ghost'}
-                    onClick={() => setNatureFilter('all')}
-                  >
-                    Todos
-                  </button>
-                  {natureOptions.hasUniversal ? (
-                    <button
-                      type="button"
-                      className={natureFilter === 'universal' ? 'primary' : 'ghost'}
-                      onClick={() => setNatureFilter('universal')}
-                    >
-                      Universal
-                    </button>
-                  ) : null}
-                  {natureOptions.sorted.map((natureId) => (
-                    <button
-                      key={natureId}
-                      type="button"
-                      className={natureFilter === natureId ? 'primary' : 'ghost'}
-                      onClick={() => setNatureFilter(natureId)}
-                    >
-                      {NATURE_SHORT[natureId] || natureId}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              {filtersOpen ? (
+                <div className="jutsu-filters-panel">
+                  <div className="jutsu-filter-block">
+                    <p className="jutsu-filter-label">Ranking</p>
+                    <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Ranking">
+                      <button
+                        type="button"
+                        className={tierFilter === 'all' ? 'primary' : 'ghost'}
+                        onClick={() => setTierFilter('all')}
+                      >
+                        Todos
+                      </button>
+                      {TIER_ORDER.map((tier) => (
+                        <button
+                          key={tier}
+                          type="button"
+                          className={tierFilter === tier ? 'primary' : 'ghost'}
+                          onClick={() => setTierFilter(tier)}
+                        >
+                          <span className={`jutsu-tier tier-${tier}`}>{tier}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="jutsu-filter-block">
-                <p className="jutsu-filter-label">Tipo</p>
-                <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Tipo">
-                  <button
-                    type="button"
-                    className={categoryFilter === 'all' ? 'primary' : 'ghost'}
-                    onClick={() => setCategoryFilter('all')}
-                  >
-                    Todos
-                  </button>
-                  {categoryOptions.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      className={categoryFilter === category ? 'primary' : 'ghost'}
-                      onClick={() => setCategoryFilter(category)}
-                    >
-                      <span aria-hidden="true">{emojiForCategory(category)} </span>
-                      {CATEGORY_LABEL[category] || category}
-                    </button>
-                  ))}
+                  <div className="jutsu-filter-block">
+                    <p className="jutsu-filter-label">Elemento</p>
+                    <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Elemento">
+                      <button
+                        type="button"
+                        className={natureFilter === 'all' ? 'primary' : 'ghost'}
+                        onClick={() => setNatureFilter('all')}
+                      >
+                        Todos
+                      </button>
+                      {myNatureIds.length ? (
+                        <button
+                          type="button"
+                          className={natureFilter === 'mine' ? 'primary' : 'ghost'}
+                          onClick={() => setNatureFilter('mine')}
+                        >
+                          Meus
+                        </button>
+                      ) : null}
+                      {natureOptions.hasUniversal ? (
+                        <button
+                          type="button"
+                          className={natureFilter === 'universal' ? 'primary' : 'ghost'}
+                          onClick={() => setNatureFilter('universal')}
+                        >
+                          Universal
+                        </button>
+                      ) : null}
+                      {natureOptions.mine.map((natureId) => (
+                        <button
+                          key={`mine-${natureId}`}
+                          type="button"
+                          className={natureFilter === natureId ? 'primary' : 'ghost'}
+                          onClick={() => setNatureFilter(natureId)}
+                        >
+                          {NATURE_SHORT[natureId] || natureId}
+                        </button>
+                      ))}
+                      {natureOptions.rest.map((natureId) => (
+                        <button
+                          key={natureId}
+                          type="button"
+                          className={natureFilter === natureId ? 'primary' : 'ghost'}
+                          onClick={() => setNatureFilter(natureId)}
+                        >
+                          {NATURE_SHORT[natureId] || natureId}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="jutsu-filter-block">
+                    <p className="jutsu-filter-label">Tipo</p>
+                    <div className="ninja-filters jutsu-chip-row" role="group" aria-label="Tipo">
+                      <button
+                        type="button"
+                        className={categoryFilter === 'all' ? 'primary' : 'ghost'}
+                        onClick={() => setCategoryFilter('all')}
+                      >
+                        Todos
+                      </button>
+                      {categoryOptions.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          className={categoryFilter === category ? 'primary' : 'ghost'}
+                          onClick={() => setCategoryFilter(category)}
+                        >
+                          <span aria-hidden="true">{emojiForCategory(category)} </span>
+                          {CATEGORY_LABEL[category] || category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              ) : null}
+
+              <div className="jutsu-result-bar">
+                <span>
+                  {listToShow.length}
+                  {' '}
+                  {listToShow.length === 1 ? 'jutsu' : 'jutsus'}
+                </span>
+                {activeFilterCount ? (
+                  <button type="button" className="ghost" onClick={clearJutsuFilters}>
+                    Limpar filtros
+                  </button>
+                ) : null}
               </div>
 
               {listToShow.length === 0 ? (
                 <p className="hint">
                   {filter === 'available'
                     ? 'Nada liberado com esses filtros — feche o dia em Hoje ou ajuste ranking/elemento.'
-                    : 'Lista vazia neste filtro.'}
+                    : filter === 'owned'
+                      ? 'Você ainda não aprendeu jutsus neste pergaminho.'
+                      : 'Lista vazia neste filtro.'}
                 </p>
               ) : (
-                <div className="jutsu-grid" role="list">
-                  {listToShow.map((item) => (
-                    <JutsuTile
-                      key={item.id}
-                      item={item}
-                      selected={item.id === selectedJutsuId}
-                      onSelect={() => setSelectedJutsuId(
-                        item.id === selectedJutsuId ? null : item.id,
-                      )}
-                    />
-                  ))}
-                </div>
+                jutsuGroups.map((group) => (
+                  <section key={group.id} className="jutsu-group">
+                    {group.label ? (
+                      <header className="jutsu-group-head">
+                        <h3>{group.label}</h3>
+                        <span>{group.items.length}</span>
+                      </header>
+                    ) : null}
+                    <div className="jutsu-grid" role="list">
+                      {group.items.map((item) => (
+                        <JutsuTile
+                          key={item.id}
+                          item={item}
+                          selected={item.id === selectedJutsuId}
+                          onSelect={() => setSelectedJutsuId(
+                            item.id === selectedJutsuId ? null : item.id,
+                          )}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))
               )}
             </div>
           </div>
@@ -1393,16 +1566,19 @@ export function NinjaPage() {
 }
 
 function JutsuTile({ item, selected, onSelect }) {
+  const owned = Boolean(item.owned);
+  const locked = !owned && !item.canUnlock;
   return (
     <button
       type="button"
-      className={`jutsu-tile${selected ? ' is-selected' : ''}${item.canUnlock ? ' can' : ' locked'}`}
+      className={`jutsu-tile${selected ? ' is-selected' : ''}${owned ? ' is-learned' : ''}${item.canUnlock ? ' can' : ''}${locked ? ' locked' : ''}`}
       onClick={onSelect}
       aria-pressed={selected}
       title={item.name}
     >
       <JutsuTileFace item={item} />
       <strong>{shortJutsuName(item.name)}</strong>
+      {owned ? <em className="jutsu-tile-badge">Aprendido</em> : null}
     </button>
   );
 }
@@ -1447,16 +1623,77 @@ function JutsuDetail({ item, saving, onUnlock, onClose, cta = 'Aprender', sticky
       {item.locked && item.missing?.length ? (
         <p className="hint">Falta: {item.missing.join(' · ')}</p>
       ) : null}
-      <button
-        type="button"
-        className="primary"
-        disabled={saving || !item.canUnlock}
-        onClick={() => onUnlock(item.id)}
-      >
-        {item.canUnlock ? `${cta} · ${item.costUnlockPoints} pts` : 'Bloqueado'}
-      </button>
+      {item.owned ? (
+        <p className="hint jutsu-owned-note">Já faz parte do seu arsenal.</p>
+      ) : (
+        <button
+          type="button"
+          className="primary"
+          disabled={saving || !item.canUnlock}
+          onClick={() => onUnlock(item.id)}
+        >
+          {item.canUnlock ? `${cta} · ${item.costUnlockPoints} pts` : 'Bloqueado'}
+        </button>
+      )}
     </div>
   );
+}
+
+function compareJutsus(a, b, sortBy) {
+  const tierA = TIER_ORDER.indexOf(a.tier);
+  const tierB = TIER_ORDER.indexOf(b.tier);
+  const safeTierA = tierA < 0 ? 99 : tierA;
+  const safeTierB = tierB < 0 ? 99 : tierB;
+  if (sortBy === 'tier-desc') {
+    if (safeTierB !== safeTierA) return safeTierB - safeTierA;
+  } else if (sortBy === 'cost') {
+    const costDiff = (a.costUnlockPoints || 0) - (b.costUnlockPoints || 0);
+    if (costDiff) return costDiff;
+  } else if (sortBy === 'name') {
+    const byName = String(a.name || '').localeCompare(String(b.name || ''), 'pt');
+    if (byName) return byName;
+  } else if (safeTierA !== safeTierB) {
+    return safeTierA - safeTierB;
+  }
+  return String(a.name || '').localeCompare(String(b.name || ''), 'pt');
+}
+
+function groupJutsus(items, groupBy) {
+  if (groupBy === 'none') {
+    return [{ id: 'all', label: '', items }];
+  }
+
+  const buckets = new Map();
+  for (const item of items) {
+    let id;
+    let label;
+    if (groupBy === 'tier') {
+      id = item.tier || 'outro';
+      label = `Ranking ${item.tier || '?'}`;
+    } else if (groupBy === 'nature') {
+      const natures = item.requiresNatures || [];
+      if (!natures.length) {
+        id = 'universal';
+        label = 'Universal';
+      } else {
+        id = natures.slice().sort().join('+');
+        label = natures.map((n) => NATURE_SHORT[n] || n).join(' + ');
+      }
+    } else {
+      id = item.category || 'outro';
+      label = `${emojiForCategory(item.category)} ${CATEGORY_LABEL[item.category] || item.category || 'Outros'}`;
+    }
+    if (!buckets.has(id)) buckets.set(id, { id, label, items: [] });
+    buckets.get(id).items.push(item);
+  }
+
+  const groups = [...buckets.values()];
+  if (groupBy === 'tier') {
+    groups.sort((a, b) => TIER_ORDER.indexOf(a.id) - TIER_ORDER.indexOf(b.id));
+  } else {
+    groups.sort((a, b) => String(a.label).localeCompare(String(b.label), 'pt'));
+  }
+  return groups;
 }
 
 function CatalogRow({ item, saving, onUnlock, cta = 'Aprender' }) {

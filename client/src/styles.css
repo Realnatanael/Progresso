@@ -1669,6 +1669,154 @@ a { color: var(--gold); }
   padding: 6px 12px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.jutsu-search {
+  display: block;
+  margin: 0 0 10px;
+}
+
+.jutsu-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+}
+
+.jutsu-search input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--gold) 55%, var(--line));
+}
+
+.jutsu-status-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.jutsu-toolbar {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 8px;
+  align-items: end;
+  margin: 0 0 10px;
+}
+
+.jutsu-filters-toggle {
+  font-size: 0.82rem;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.jutsu-filters-toggle.is-active {
+  border-color: color-mix(in srgb, var(--gold) 50%, var(--line));
+  color: var(--gold);
+}
+
+.jutsu-select {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jutsu-select span {
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.jutsu-select select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.jutsu-filters-panel {
+  margin: 0 0 10px;
+  padding: 10px 10px 4px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--raise) 55%, transparent);
+}
+
+.jutsu-result-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.jutsu-result-bar .ghost {
+  font-size: 0.78rem;
+  padding: 4px 10px;
+}
+
+.jutsu-group {
+  margin: 0 0 14px;
+}
+
+.jutsu-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.jutsu-group-head h3 {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.jutsu-group-head span {
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+
+.jutsu-tile.is-learned {
+  opacity: 1;
+  border-color: color-mix(in srgb, #4caf6a 35%, var(--line));
+}
+
+.jutsu-tile-badge {
+  font-style: normal;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4caf6a;
+}
+
+.jutsu-owned-note {
+  margin: 8px 0 0;
+}
+
 .jutsu-filter-block {
   margin: 0 0 4px;
 }
@@ -1685,8 +1833,26 @@ a { color: var(--gold); }
   color: var(--faint);
 }
 
+.jutsu-chip-row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 .jutsu-chip-row .jutsu-tier {
   margin: 0;
+}
+
+@media (max-width: 560px) {
+  .jutsu-toolbar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .jutsu-filters-toggle {
+    grid-column: 1 / -1;
+  }
 }
 
 .jutsu-grid {
