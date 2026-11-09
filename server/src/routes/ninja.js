@@ -6,6 +6,7 @@ import { isIsoDate, todayISO } from '../lib/dates.js';
 import { dayFlagsForUser } from '../lib/ninjaDayFlags.js';
 import {
   catalogForUser,
+  convertPointsToChakra,
   ensureNinja,
   pickStat,
   publicNinja,
@@ -172,6 +173,29 @@ router.post('/pick-stat', async (req, res, next) => {
 
     user.markModified('ninja');
     const changes = [{ type: 'stat', stat, delta: +1, date }];
+    await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
+    res.json(buildPayload(user, changes));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/convert-points', async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(401).json({ error: 'Sessão inválida.' });
+
+    const n = ensureNinja(user);
+    const lookBefore = avatarLookKeyFromNinja(n);
+    const result = convertPointsToChakra(n);
+    if (result.error) return res.status(400).json({ error: result.error });
+
+    user.markModified('ninja');
+    const changes = [{
+      type: 'convert-points',
+      spent: result.spent,
+      gained: result.gained,
+    }];
     await saveNinjaWithAvatarRefresh(user, lookBefore, changes);
     res.json(buildPayload(user, changes));
   } catch (error) {

@@ -1291,6 +1291,12 @@ a { color: var(--gold); }
 
 .ninja-stats { display: grid; gap: 10px; }
 
+.ninja-convert-pts {
+  justify-self: start;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+}
+
 .ninja-bar-head {
   display: flex;
   justify-content: space-between;
@@ -1686,6 +1692,10 @@ a { color: var(--gold); }
   margin-top: 12px;
 }
 
+.jutsu-grid-hint-top {
+  margin: 0 0 12px;
+}
+
 .jutsu-detail {
   margin-top: 12px;
   padding: 12px;
@@ -1694,6 +1704,16 @@ a { color: var(--gold); }
   background: color-mix(in srgb, var(--gold) 8%, var(--raise));
   display: grid;
   gap: 8px;
+}
+
+.jutsu-detail-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  margin-top: 0;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
 }
 
 .jutsu-detail-head {

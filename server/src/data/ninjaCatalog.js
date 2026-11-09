@@ -38,6 +38,9 @@ export const RANK_UP = {
 export const PERFECT_DAY_POINTS = 3;
 export const CHAKRA_MAX = 365;
 export const STAT_MAX = 100;
+/** Converter pts de desbloqueio em chakra. */
+export const POINTS_TO_CHAKRA_COST = 3;
+export const POINTS_TO_CHAKRA_GAIN = 1;
 /** Custo pra rolar afinidade rara no lugar do 1º elemento básico. */
 export const AFFINITY_ROLL_COST = 8;
 
