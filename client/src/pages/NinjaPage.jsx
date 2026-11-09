@@ -402,19 +402,29 @@ export function NinjaPage() {
 
       {!loading && ninja && unlocked ? (
         <>
-          <section className="today">
-            <p className="date">Ninja</p>
-            <h1>
-              {ninja.clanName
-                ? `${firstName(ninja.displayName)} · Clã ${ninja.clanName}`
-                : firstName(ninja.displayName)}
-            </h1>
-            <p className="summary">
-              {ninja.rankLabel}
-              {' · '}
-              {ninja.unlockPoints} pts de desbloqueio
-              {ninja.natureLabels?.length ? ` · ${ninja.natureLabels.join(' · ')}` : ''}
-            </p>
+          <section className="today ninja-identity">
+            <div className="ninja-identity-text">
+              <p className="date">Ninja</p>
+              <h1>{firstName(ninja.displayName)}</h1>
+              {ninja.clanName ? (
+                <p className="ninja-clan">Clã {ninja.clanName}</p>
+              ) : null}
+              <p className="ninja-pts">
+                {ninja.unlockPoints === 1
+                  ? '1 ponto'
+                  : `${ninja.unlockPoints || 0} pontos`}
+              </p>
+            </div>
+            <div className="ninja-crest" aria-hidden={!ninja.crestUrl}>
+              {ninja.crestUrl ? (
+                <img
+                  src={`${ninja.crestUrl}?t=${encodeURIComponent(ninja.crestUpdatedAt || '')}`}
+                  alt=""
+                />
+              ) : (
+                <span className="ninja-crest-placeholder" />
+              )}
+            </div>
           </section>
 
           <section className="ninja-stage">
