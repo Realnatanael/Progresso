@@ -258,12 +258,19 @@ export function buildStoryProgress(n, catalogById) {
   // Capítulos de prova (successNeedsJutsu) abrem mesmo sem jutsu — as opções é que travam.
   const hardJutsuGate = (current?.advanceRequiresJutsus || 0) > jutsuCount
     && !current?.successNeedsJutsu;
+  const today = currentStoryToday();
+  const lockedUntilTomorrow = Boolean(
+    n.story?.retryAfter
+    && n.story.retryAfter > today
+    && !n.story?.activeBeat,
+  );
   const canAdvance = Boolean(
     current
     && !current.complete
     && current.goalsComplete
     && !hardJutsuGate
-    && !n.story?.activeBeat,
+    && !n.story?.activeBeat
+    && !lockedUntilTomorrow,
   );
 
   const activeBeat = n.story?.activeBeat
@@ -282,10 +289,20 @@ export function buildStoryProgress(n, catalogById) {
     currentIndex,
     percent: Math.round((completed.size / Math.max(1, chapters.length)) * 100),
     canAdvance,
+    lockedUntilTomorrow,
+    retryAfter: n.story?.retryAfter || null,
     activeBeat,
     lastOutcome: n.story?.lastOutcome || null,
     finished: completed.size >= chapters.length,
   };
+}
+
+function currentStoryToday() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 export function ensureStoryState(n) {
@@ -293,6 +310,8 @@ export function ensureStoryState(n) {
     n.story = {
       completedChapterIds: [],
       activeBeat: null,
+      cachedBeat: null,
+      retryAfter: null,
       lastOutcome: null,
       choiceHistory: [],
     };
@@ -300,6 +319,8 @@ export function ensureStoryState(n) {
   if (!Array.isArray(n.story.completedChapterIds)) n.story.completedChapterIds = [];
   if (!Array.isArray(n.story.choiceHistory)) n.story.choiceHistory = [];
   if (n.story.activeBeat === undefined) n.story.activeBeat = null;
+  if (n.story.cachedBeat === undefined) n.story.cachedBeat = null;
+  if (n.story.retryAfter === undefined) n.story.retryAfter = null;
   if (n.story.lastOutcome === undefined) n.story.lastOutcome = null;
   return n.story;
 }

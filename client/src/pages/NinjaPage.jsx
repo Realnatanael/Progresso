@@ -304,14 +304,17 @@ export function NinjaPage() {
 
   async function advanceStory() {
     setStoryOpen(true);
-    const payload = await run(() => api('/api/ninja/story/advance', { method: 'POST', body: {} }));
+    const payload = await run(() => api('/api/ninja/story/advance', {
+      method: 'POST',
+      body: { date },
+    }));
     if (!payload) setStoryOpen(false);
   }
 
   async function chooseStory(choiceId) {
     const payload = await run(() => api('/api/ninja/story/choose', {
       method: 'POST',
-      body: { choiceId },
+      body: { choiceId, date },
     }));
     if (payload) setStoryOpen(false);
   }
@@ -583,12 +586,19 @@ export function NinjaPage() {
                       ? 'Gerando cena…'
                       : activeBeat
                         ? 'Continuar cena'
-                        : story.canAdvance
-                          ? 'Avançar na história'
-                          : 'Requisitos incompletos'}
+                        : story.lockedUntilTomorrow
+                          ? 'Tente amanhã'
+                          : story.canAdvance
+                            ? 'Avançar na história'
+                            : 'Requisitos incompletos'}
                   </button>
-                  {currentChapter.successNeedsJutsu && !jutsuOwned ? (
-                    <p className="hint">Sem jutsu, a prova não deixa você passar de capítulo.</p>
+                  {story.lockedUntilTomorrow ? (
+                    <p className="hint">
+                      Você já tentou hoje. Aprenda um jutsu e volte amanhã — a cena se repete sem gastar IA de novo.
+                    </p>
+                  ) : null}
+                  {currentChapter.successNeedsJutsu && !jutsuOwned && !story.lockedUntilTomorrow ? (
+                    <p className="hint">Pode tentar sem jutsu, mas nenhuma opção vai deixar você passar.</p>
                   ) : null}
                 </>
               ) : (
