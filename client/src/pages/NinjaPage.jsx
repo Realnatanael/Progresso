@@ -436,8 +436,8 @@ export function NinjaPage() {
                 value={ninja.chakra}
                 max={ninja.chakraMax}
                 tone="chakra"
-                onPlus={() => convertPoints()}
-                plusDisabled={saving || !ninja.canConvertPointsToChakra}
+                onPlus={ninja.canConvertPointsToChakra ? () => convertPoints() : undefined}
+                plusDisabled={saving}
                 plusLabel={`${ninja.pointsToChakraCost || 3} pts → +${ninja.pointsToChakraGain || 1} chakra`}
               />
               <StatBar
