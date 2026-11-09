@@ -11,12 +11,6 @@ import {
   visualForJutsu,
 } from '../natures.js';
 
-const STATS = [
-  { id: 'ninjutsu', label: 'Ninjutsu' },
-  { id: 'genjutsu', label: 'Genjutsu' },
-  { id: 'taijutsu', label: 'Taijutsu' },
-];
-
 const KIND_LABEL = {
   nature: 'Natureza',
   jutsu: 'Jutsu',
@@ -437,33 +431,50 @@ export function NinjaPage() {
             </div>
 
             <div className="ninja-stats">
-              <StatBar label="Chakra" value={ninja.chakra} max={ninja.chakraMax} tone="chakra" />
-              <StatBar label="Ninjutsu" value={ninja.ninjutsu} max={ninja.statMax} tone="nin" />
-              <StatBar label="Genjutsu" value={ninja.genjutsu} max={ninja.statMax} tone="gen" />
-              <StatBar label="Taijutsu" value={ninja.taijutsu} max={ninja.statMax} tone="tai" />
-              <button
-                type="button"
-                className="ghost ninja-convert-pts"
-                disabled={saving || !ninja.canConvertPointsToChakra}
-                onClick={() => convertPoints()}
-              >
-                {ninja.canConvertPointsToChakra
-                  ? `${ninja.pointsToChakraCost || 3} pts → +${ninja.pointsToChakraGain || 1} chakra`
-                  : `${ninja.unlockPoints}/${ninja.pointsToChakraCost || 3} pts pra +1 chakra`}
-              </button>
+              <StatBar
+                label="Chakra"
+                value={ninja.chakra}
+                max={ninja.chakraMax}
+                tone="chakra"
+                onPlus={() => convertPoints()}
+                plusDisabled={saving || !ninja.canConvertPointsToChakra}
+                plusLabel={`${ninja.pointsToChakraCost || 3} pts → +${ninja.pointsToChakraGain || 1} chakra`}
+              />
+              <StatBar
+                label="Ninjutsu"
+                value={ninja.ninjutsu}
+                max={ninja.statMax}
+                tone="nin"
+                onPlus={pending ? () => pickStat('ninjutsu') : undefined}
+                plusDisabled={saving || ninja.ninjutsu >= ninja.statMax}
+                plusLabel="Treino de hoje · +1 Ninjutsu"
+                plusPulse={pending}
+              />
+              <StatBar
+                label="Genjutsu"
+                value={ninja.genjutsu}
+                max={ninja.statMax}
+                tone="gen"
+                onPlus={pending ? () => pickStat('genjutsu') : undefined}
+                plusDisabled={saving || ninja.genjutsu >= ninja.statMax}
+                plusLabel="Treino de hoje · +1 Genjutsu"
+                plusPulse={pending}
+              />
+              <StatBar
+                label="Taijutsu"
+                value={ninja.taijutsu}
+                max={ninja.statMax}
+                tone="tai"
+                onPlus={pending ? () => pickStat('taijutsu') : undefined}
+                plusDisabled={saving || ninja.taijutsu >= ninja.statMax}
+                plusLabel="Treino de hoje · +1 Taijutsu"
+                plusPulse={pending}
+              />
             </div>
+            {pending ? (
+              <p className="hint ninja-train-hint">Treino pronto — toque no + de Nin, Gen ou Tai.</p>
+            ) : null}
           </section>
-
-          <div className="ninja-photo-actions ninja-photo-actions-inline">
-            <button
-              type="button"
-              className="ghost ninja-photo-secondary"
-              disabled={generatingAvatar || saving}
-              onClick={() => galleryInputRef.current?.click()}
-            >
-              {generatingAvatar ? 'Atualizando visual…' : 'Atualizar foto de referência'}
-            </button>
-          </div>
 
           {ninja.needsFirstNature ? (
             <section className="ninja-card ninja-nature-pick">
@@ -544,26 +555,6 @@ export function NinjaPage() {
               ))}
             </div>
           )}
-
-          {pending ? (
-            <section className="ninja-card">
-              <h2>Treino de hoje</h2>
-              <p className="hint">Escolha onde investir o ponto de treino.</p>
-              <div className="ninja-pick">
-                {STATS.map((stat) => (
-                  <button
-                    key={stat.id}
-                    type="button"
-                    className="primary"
-                    disabled={saving || ninja[stat.id] >= ninja.statMax}
-                    onClick={() => pickStat(stat.id)}
-                  >
-                    +1 {stat.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          ) : null}
 
           {story && currentChapter ? (
             <section className="ninja-card ninja-story">
@@ -1395,13 +1386,36 @@ function firstName(fullName) {
   return part || 'Ninja';
 }
 
-function StatBar({ label, value, max, tone }) {
+function StatBar({
+  label,
+  value,
+  max,
+  tone,
+  onPlus,
+  plusDisabled = false,
+  plusLabel,
+  plusPulse = false,
+}) {
   const pct = max ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div className={`ninja-bar ${tone}`}>
       <div className="ninja-bar-head">
         <span>{label}</span>
-        <strong>{value}/{max}</strong>
+        <div className="ninja-bar-value">
+          <strong>{value}/{max}</strong>
+          {onPlus ? (
+            <button
+              type="button"
+              className={`ninja-stat-plus${plusPulse ? ' is-pulse' : ''}`}
+              disabled={plusDisabled}
+              onClick={onPlus}
+              aria-label={plusLabel || `Aumentar ${label}`}
+              title={plusLabel || `Aumentar ${label}`}
+            >
+              +
+            </button>
+          ) : null}
+        </div>
       </div>
       <div className="ninja-bar-track" aria-hidden="true">
         <span style={{ width: `${pct}%` }} />

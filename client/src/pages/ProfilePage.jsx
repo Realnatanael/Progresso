@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { api, todayISO } from '../api.js';
 import { AppNav } from '../components/AppNav.jsx';
+import { encodeSelfie } from '../lib/photoEncode.js';
 import { formatKg, formatNumber, formatWeightDate, GENDERS } from '../format.js';
 import { PART_RANGES, PHYSIQUE_STAGES, USER_BASELINE } from '../bodyMeasures.js';
 
@@ -50,6 +51,10 @@ export function ProfilePage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
+  const [avatarHint, setAvatarHint] = useState('');
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -131,6 +136,28 @@ export function ProfilePage() {
     return run(() => api(`/api/body/weight?date=${date}`, { method: 'DELETE' }));
   }
 
+  async function onPickSelfie(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setGeneratingAvatar(true);
+    setError('');
+    setAvatarHint('');
+    try {
+      const encoded = await encodeSelfie(file);
+      await api('/api/ninja/avatar', {
+        method: 'POST',
+        body: encoded,
+      });
+      setAvatarHint('Personagem atualizado. Veja em Ninja.');
+    } catch (err) {
+      setError(err.message || 'Não foi possível atualizar a foto do personagem.');
+    } finally {
+      setGeneratingAvatar(false);
+    }
+  }
+
   const todayWeight = body?.weights.find((entry) => entry.date === date);
   const stats = body?.stats;
   const firstName = user?.name?.split(' ')[0] || 'você';
@@ -145,6 +172,22 @@ export function ProfilePage() {
       {loading ? <p className="screen-status">Abrindo o perfil…</p> : null}
       {error ? <p className="alert" role="alert">{error}</p> : null}
 
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={onPickSelfie}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        hidden
+        onChange={onPickSelfie}
+      />
+
       {!loading ? (
         <>
           <section className="today">
@@ -154,6 +197,33 @@ export function ProfilePage() {
               Dados pessoais, peso e medidas. O avatar em{' '}
               <Link to="/corpo">Corpo</Link> acompanha o que você salvar aqui.
             </p>
+          </section>
+
+          <section className="plan-block">
+            <h2>Personagem ninja</h2>
+            <p className="hint">
+              Atualize a foto de referência. O visual em{' '}
+              <Link to="/ninja">Ninja</Link> regenera mantendo rank e dōjutsu.
+            </p>
+            <div className="edit-actions profile-ninja-photo">
+              <button
+                type="button"
+                className="primary"
+                disabled={generatingAvatar || saving}
+                onClick={() => galleryInputRef.current?.click()}
+              >
+                {generatingAvatar ? 'Atualizando personagem…' : 'Escolher foto'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                disabled={generatingAvatar || saving}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Tirar foto
+              </button>
+            </div>
+            {avatarHint ? <p className="hint">{avatarHint}</p> : null}
           </section>
 
           <section className="plan-block">
