@@ -5,6 +5,8 @@ import {
   NATURES,
   NINJA_CATALOG,
   PERFECT_DAY_POINTS,
+  POINTS_TO_CHAKRA_COST,
+  POINTS_TO_CHAKRA_GAIN,
   RANK_ORDER,
   RANK_UP,
   STAT_MAX,
@@ -79,6 +81,10 @@ export function publicNinja(user) {
     taijutsu: n.taijutsu || 0,
     statMax: STAT_MAX,
     unlockPoints: n.unlockPoints || 0,
+    pointsToChakraCost: POINTS_TO_CHAKRA_COST,
+    pointsToChakraGain: POINTS_TO_CHAKRA_GAIN,
+    canConvertPointsToChakra: (n.unlockPoints || 0) >= POINTS_TO_CHAKRA_COST
+      && (n.chakra || 0) < CHAKRA_MAX,
     natures: [...(n.natures || [])],
     natureLabels: (n.natures || []).map((id) => formatNatureLabel(id)),
     needsFirstNature: (n.natures || []).length === 0,
@@ -269,6 +275,28 @@ export function pickStat(n, date, stat) {
   if (n.pendingStatPick?.date === date) n.pendingStatPick = null;
   applyRankUps(n);
   return { ok: true };
+}
+
+/** Troca pts de desbloqueio por chakra (padrão 3 → +1). */
+export function convertPointsToChakra(n) {
+  const cost = POINTS_TO_CHAKRA_COST;
+  const gain = POINTS_TO_CHAKRA_GAIN;
+  if ((n.unlockPoints || 0) < cost) {
+    return { error: `Precisa de ${cost} pts para converter em chakra.` };
+  }
+  if ((n.chakra || 0) >= CHAKRA_MAX) {
+    return { error: 'Chakra já está no máximo.' };
+  }
+  n.unlockPoints = (n.unlockPoints || 0) - cost;
+  n.chakra = Math.min(CHAKRA_MAX, (n.chakra || 0) + gain);
+  applyRankUps(n);
+  return {
+    ok: true,
+    spent: cost,
+    gained: gain,
+    unlockPoints: n.unlockPoints,
+    chakra: n.chakra,
+  };
 }
 
 function ownedIds(n) {

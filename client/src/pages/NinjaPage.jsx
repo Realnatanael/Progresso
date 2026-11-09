@@ -127,6 +127,10 @@ export function NinjaPage() {
     return run(() => api('/api/ninja/unlock', { method: 'POST', body: { catalogId } }));
   }
 
+  function convertPoints() {
+    return run(() => api('/api/ninja/convert-points', { method: 'POST', body: {} }));
+  }
+
   function rollAffinity() {
     return run(() => api('/api/ninja/affinity-roll', { method: 'POST', body: {} }));
   }
@@ -271,6 +275,12 @@ export function NinjaPage() {
       setSelectedJutsuId(null);
     }
   }, [listToShow, selectedJutsuId]);
+
+  useEffect(() => {
+    if (!selectedJutsuId || openPanel !== 'jutsus') return;
+    const body = document.querySelector('.ninja-sheet-body');
+    body?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [selectedJutsuId, openPanel]);
 
   useEffect(() => {
     if (!openPanel) return undefined;
@@ -431,6 +441,16 @@ export function NinjaPage() {
               <StatBar label="Ninjutsu" value={ninja.ninjutsu} max={ninja.statMax} tone="nin" />
               <StatBar label="Genjutsu" value={ninja.genjutsu} max={ninja.statMax} tone="gen" />
               <StatBar label="Taijutsu" value={ninja.taijutsu} max={ninja.statMax} tone="tai" />
+              <button
+                type="button"
+                className="ghost ninja-convert-pts"
+                disabled={saving || !ninja.canConvertPointsToChakra}
+                onClick={() => convertPoints()}
+              >
+                {ninja.canConvertPointsToChakra
+                  ? `${ninja.pointsToChakraCost || 3} pts → +${ninja.pointsToChakraGain || 1} chakra`
+                  : `${ninja.unlockPoints}/${ninja.pointsToChakraCost || 3} pts pra +1 chakra`}
+              </button>
             </div>
           </section>
 
@@ -908,7 +928,7 @@ export function NinjaPage() {
           ) : null}
 
           <p className="hint ninja-tip">
-            Água = +1 chakra/dia · Treino = +1 Nin/Gen/Tai · Dia completo = +3 pts
+            Água = +1 chakra/dia · Treino = +1 Nin/Gen/Tai · Dia completo = +3 pts · 3 pts = +1 chakra
           </p>
         </>
       ) : null}
@@ -941,6 +961,20 @@ export function NinjaPage() {
             </header>
 
             <div className="ninja-sheet-body">
+              {selectedJutsu ? (
+                <JutsuDetail
+                  item={selectedJutsu}
+                  saving={saving}
+                  onUnlock={unlock}
+                  onClose={() => setSelectedJutsuId(null)}
+                  sticky
+                />
+              ) : (
+                <p className="hint jutsu-grid-hint jutsu-grid-hint-top">
+                  Toque num jutsu para ver detalhes e aprender.
+                </p>
+              )}
+
               <div className="jutsu-filter-block" role="group" aria-label="Disponibilidade">
                 <div className="ninja-filters">
                   <button
@@ -1053,30 +1087,18 @@ export function NinjaPage() {
                     : 'Lista vazia neste filtro.'}
                 </p>
               ) : (
-                <>
-                  <div className="jutsu-grid" role="list">
-                    {listToShow.map((item) => (
-                      <JutsuTile
-                        key={item.id}
-                        item={item}
-                        selected={item.id === selectedJutsuId}
-                        onSelect={() => setSelectedJutsuId(
-                          item.id === selectedJutsuId ? null : item.id,
-                        )}
-                      />
-                    ))}
-                  </div>
-                  {selectedJutsu ? (
-                    <JutsuDetail
-                      item={selectedJutsu}
-                      saving={saving}
-                      onUnlock={unlock}
-                      onClose={() => setSelectedJutsuId(null)}
+                <div className="jutsu-grid" role="list">
+                  {listToShow.map((item) => (
+                    <JutsuTile
+                      key={item.id}
+                      item={item}
+                      selected={item.id === selectedJutsuId}
+                      onSelect={() => setSelectedJutsuId(
+                        item.id === selectedJutsuId ? null : item.id,
+                      )}
                     />
-                  ) : (
-                    <p className="hint jutsu-grid-hint">Toque num jutsu para ver detalhes e aprender.</p>
-                  )}
-                </>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -1287,12 +1309,12 @@ function JutsuTileFace({ item }) {
   );
 }
 
-function JutsuDetail({ item, saving, onUnlock, onClose, cta = 'Aprender' }) {
+function JutsuDetail({ item, saving, onUnlock, onClose, cta = 'Aprender', sticky = false }) {
   const natureTag = (item.requiresNatures || [])
     .map((id) => NATURE_SHORT[id] || id)
     .join('+') || 'Universal';
   return (
-    <div className="jutsu-detail">
+    <div className={`jutsu-detail${sticky ? ' jutsu-detail-sticky' : ''}`}>
       <div className="jutsu-detail-head">
         <div>
           <strong>{item.name}</strong>
