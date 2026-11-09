@@ -8,7 +8,7 @@ useGLTF.preload('/models/sg-male.glb');
 useGLTF.preload('/models/sg-female.glb');
 
 /** Bumpe quando pose/morph local mudar, para reclonar o skeleton no HMR. */
-const STANCE_REV = 30;
+const STANCE_REV = 31;
 
 const RECOVERY_GLOW = {
   red: new THREE.Color('#e84a3c'),
@@ -150,7 +150,7 @@ function prepareMuscleData(root) {
     const shoulderPush = 0.02;
     const chestPush = 0.016;
     const chestCleft = 0.0028;
-    const thighPush = 0.014;
+    const thighPush = 0.019;
     const calfPush = 0.013;
     // 85→93: hemisfério suave (sigma largo = menos triangular)
     const glutePush = 0.038;
@@ -327,14 +327,14 @@ function prepareMuscleData(root) {
       }
 
       // —— Coxa: espessura suave no UpLeg (quad + lateral) ——
-      if (upLegBoneIdx >= 0 && upLegSkin >= 0.2 && calfSkin < 0.55) {
+      if (upLegBoneIdx >= 0 && upLegSkin >= 0.18 && calfSkin < 0.55) {
         boneSpace.copy(tmp).applyMatrix4(obj.bindMatrix).applyMatrix4(skeleton.boneInverses[upLegBoneIdx]);
         const upLen = boneLength(skeleton.bones[upLegBoneIdx]) || 0.4;
         const along = THREE.MathUtils.clamp(boneSpace.y / upLen, 0, 1);
-        // barriga no meio da coxa; evita joelho e virilha
-        const belly = Math.exp(-(((along - 0.4) / 0.3) ** 2));
+        // barriga no meio da coxa; evita joelho e virilha (sigma um pouco mais largo)
+        const belly = Math.exp(-(((along - 0.42) / 0.34) ** 2));
         const influence = upLegSkin * belly;
-        if (influence >= 0.04) {
+        if (influence >= 0.03) {
           radial.set(boneSpace.x, 0, boneSpace.z);
           if (radial.lengthSq() > 1e-8) {
             radial.normalize();
@@ -343,9 +343,9 @@ function prepareMuscleData(root) {
             // levemente mais na frente (quad) e por fora
             const sideX = isLeft ? 1 : -1;
             pushDir.set(
-              radial.x + sideX * 0.15,
-              radial.y * 0.2,
-              radial.z + (tmp.z > 0 ? 0.25 : 0.05),
+              radial.x + sideX * 0.22,
+              radial.y * 0.18,
+              radial.z + (tmp.z > 0 ? 0.28 : 0.08),
             ).normalize();
             const push = thighPush * influence;
             thighDeltas[i * 3] = pushDir.x * push;
