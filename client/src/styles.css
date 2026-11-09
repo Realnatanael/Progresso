@@ -731,6 +731,32 @@ a { color: var(--gold); }
   color: var(--ink);
 }
 
+.workout-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.workout-tag {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1;
+  padding: 10px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.workout-tag[aria-pressed="true"] {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--gold-ink);
+}
+
 .recovery-strip {
   display: grid;
   gap: 8px;

@@ -6,7 +6,7 @@ import { AppNav } from '../components/AppNav.jsx';
 import { BodyAvatar } from '../components/BodyAvatar.jsx';
 import { formatKg, formatNumber, genderLabel } from '../format.js';
 import { USER_BASELINE, partsFromMeasures } from '../bodyMeasures.js';
-import { guessMusclesFromName, MUSCLE_GROUPS, RECOVERY_LEVELS } from '../muscles.js';
+import { findWorkoutTag, MUSCLE_GROUPS, RECOVERY_LEVELS, WORKOUT_TAGS } from '../muscles.js';
 import { syncNinja } from '../ninjaSync.js';
 
 const DAY_PICKS = [
@@ -24,7 +24,6 @@ export function BodyPage() {
   const date = todayISO();
   const [body, setBody] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [drafts, setDrafts] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -81,18 +80,27 @@ export function BodyPage() {
     });
   }
 
-  function addExercise(event, weekday) {
-    event.preventDefault();
+  function findExerciseByTag(day, tag) {
+    const label = tag.label.toLowerCase();
+    return day.exercises.find((item) => String(item.name || '').trim().toLowerCase() === label) || null;
+  }
+
+  function toggleTag(weekday, tag) {
     if (!plan) return undefined;
-    const name = (drafts[weekday] || '').trim();
-    if (!name) return undefined;
-    const muscles = guessMusclesFromName(name);
+    const day = plan.days.find((item) => item.weekday === weekday);
+    if (!day) return undefined;
+    const existing = findExerciseByTag(day, tag);
+    if (existing) {
+      return run(async () => {
+        await api(`/api/habits/${plan.id}/exercises/${existing.id}?date=${date}`, { method: 'DELETE' });
+        return refreshBody();
+      });
+    }
     return run(async () => {
       await api(`/api/habits/${plan.id}/exercises`, {
         method: 'POST',
-        body: { date, weekday, name, muscles },
+        body: { date, weekday, name: tag.label, muscles: tag.muscles },
       });
-      setDrafts((current) => ({ ...current, [weekday]: '' }));
       return refreshBody();
     });
   }
@@ -123,34 +131,6 @@ export function BodyPage() {
       ? current.filter((id) => id !== muscleId)
       : [...current, muscleId];
     // otimista: atualiza chips na hora
-    setBody((prev) => {
-      if (!prev?.workout) return prev;
-      return {
-        ...prev,
-        workout: {
-          ...prev.workout,
-          days: prev.workout.days.map((day) => ({
-            ...day,
-            exercises: day.exercises.map((item) => (
-              item.id === exercise.id ? { ...item, muscles } : item
-            )),
-          })),
-        },
-      };
-    });
-    return run(async () => {
-      await api(`/api/habits/${plan.id}/exercises/${exercise.id}`, {
-        method: 'PATCH',
-        body: { date, muscles },
-      });
-      return refreshBody();
-    });
-  }
-
-  function applyGuessedMuscles(exercise) {
-    if (!plan) return undefined;
-    const muscles = guessMusclesFromName(exercise.name);
-    if (!muscles.length) return undefined;
     setBody((prev) => {
       if (!prev?.workout) return prev;
       return {
@@ -323,15 +303,29 @@ export function BodyPage() {
                           <strong>{day.name}{day.today ? ' · hoje' : ''}</strong>
                         </div>
                         <div className="plan-edit">
+                          <div className="workout-tags" role="group" aria-label={`Tags de ${day.name}`}>
+                            {WORKOUT_TAGS.map((tag) => {
+                              const on = Boolean(findExerciseByTag(day, tag));
+                              return (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  className="workout-tag"
+                                  aria-pressed={on}
+                                  disabled={saving}
+                                  onClick={() => toggleTag(day.weekday, tag)}
+                                >
+                                  {tag.label}
+                                </button>
+                              );
+                            })}
+                          </div>
                           {day.exercises.length ? (
                             <ul className="exercise-list">
                               {day.exercises.map((exercise, index) => {
                                 const tagged = exercise.muscles || [];
-                                const guessed = guessMusclesFromName(exercise.name);
-                                const canGuess = guessed.length > 0
-                                  && (tagged.length === 0
-                                    || tagged.length !== guessed.length
-                                    || guessed.some((id) => !tagged.includes(id)));
+                                const preset = findWorkoutTag(exercise.name);
+                                const showMusclePicks = !preset || preset.muscles.length > 1 || tagged.length !== 1;
                                 return (
                                   <li key={exercise.id} className="exercise-row">
                                     <div className="exercise-main">
@@ -340,53 +334,32 @@ export function BodyPage() {
                                       <button type="button" className="text" aria-label={`Descer ${exercise.name}`} disabled={saving || index === day.exercises.length - 1} onClick={() => moveExercise(exercise.id, 'down')}>↓</button>
                                       <button type="button" className="text" aria-label={`Remover ${exercise.name}`} disabled={saving} onClick={() => removeExercise(exercise.id)}>×</button>
                                     </div>
-                                    <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
-                                      {MUSCLE_GROUPS.map((muscle) => {
-                                        const on = tagged.includes(muscle.id);
-                                        return (
-                                          <button
-                                            key={muscle.id}
-                                            type="button"
-                                            className="muscle-chip"
-                                            aria-pressed={on}
-                                            disabled={saving}
-                                            onClick={() => toggleMuscle(exercise, muscle.id)}
-                                          >
-                                            {muscle.label}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                    {canGuess ? (
-                                      <button
-                                        type="button"
-                                        className="text muscle-guess"
-                                        disabled={saving}
-                                        onClick={() => applyGuessedMuscles(exercise)}
-                                      >
-                                        Sugerir pelos nomes
-                                      </button>
+                                    {showMusclePicks ? (
+                                      <div className="muscle-picks" role="group" aria-label={`Músculos de ${exercise.name}`}>
+                                        {MUSCLE_GROUPS.map((muscle) => {
+                                          const on = tagged.includes(muscle.id);
+                                          return (
+                                            <button
+                                              key={muscle.id}
+                                              type="button"
+                                              className="muscle-chip"
+                                              aria-pressed={on}
+                                              disabled={saving}
+                                              onClick={() => toggleMuscle(exercise, muscle.id)}
+                                            >
+                                              {muscle.label}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
                                     ) : null}
                                   </li>
                                 );
                               })}
                             </ul>
                           ) : (
-                            <p className="hint">Sem exercícios</p>
+                            <p className="hint">Toque nas tags para montar o dia</p>
                           )}
-                          <form className="exercise-add" onSubmit={(event) => addExercise(event, day.weekday)}>
-                            <label className="sr" htmlFor={`ex-${day.weekday}`}>Exercício de {day.name}</label>
-                            <input
-                              id={`ex-${day.weekday}`}
-                              maxLength={80}
-                              placeholder="Ex.: peito e tríceps"
-                              value={drafts[day.weekday] || ''}
-                              onChange={(event) => setDrafts((current) => ({ ...current, [day.weekday]: event.target.value }))}
-                            />
-                            <button className="primary" type="submit" disabled={saving || !(drafts[day.weekday] || '').trim()}>
-                              Adicionar
-                            </button>
-                          </form>
                         </div>
                       </li>
                     ))}

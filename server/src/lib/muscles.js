@@ -4,7 +4,7 @@ export const MUSCLE_GROUPS = [
   { id: 'biceps', label: 'Bíceps', recoveryHours: 48 },
   { id: 'triceps', label: 'Tríceps', recoveryHours: 48 },
   { id: 'forearms', label: 'Antebraço', recoveryHours: 36 },
-  { id: 'chest', label: 'Peitoral', recoveryHours: 48 },
+  { id: 'chest', label: 'Peito', recoveryHours: 48 },
   { id: 'back', label: 'Costas', recoveryHours: 72 },
   { id: 'glutes', label: 'Glúteos', recoveryHours: 48 },
   { id: 'quads', label: 'Quadríceps', recoveryHours: 72 },
@@ -13,6 +13,17 @@ export const MUSCLE_GROUPS = [
 ];
 
 export const MUSCLE_IDS = new Set(MUSCLE_GROUPS.map((item) => item.id));
+
+/** Basquete: pernas no salto/sprint + ombro/tríceps/antebraço no arremesso e drible. */
+export const BASKETBALL_MUSCLES = [
+  'quads',
+  'hamstrings',
+  'glutes',
+  'calves',
+  'shoulders',
+  'triceps',
+  'forearms',
+];
 
 export const RECOVERY_LEVELS = [
   { id: 'red', label: 'Recém treinado', color: '#e84a3c' },
@@ -40,12 +51,14 @@ const NAME_HINTS = [
 ];
 
 const FULL_BODY_RE = /full\s*body|corpo\s*todo|fullbody|treino\s*completo|whole\s*body/i;
+const BASKETBALL_RE = /basquete|basketball|basket/i;
 
 /** Infere músculos pelo nome do exercício (ex.: "peito e triceps"). */
 export function guessMusclesFromName(name) {
   const text = String(name || '');
   if (!text.trim()) return [];
   if (FULL_BODY_RE.test(text)) return NAME_HINTS.map((hint) => hint.id);
+  if (BASKETBALL_RE.test(text)) return [...BASKETBALL_MUSCLES];
   return NAME_HINTS.filter((hint) => hint.re.test(text)).map((hint) => hint.id);
 }
 

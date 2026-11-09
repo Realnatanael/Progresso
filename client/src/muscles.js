@@ -4,12 +4,37 @@ export const MUSCLE_GROUPS = [
   { id: 'biceps', label: 'Bíceps', recoveryHours: 48 },
   { id: 'triceps', label: 'Tríceps', recoveryHours: 48 },
   { id: 'forearms', label: 'Antebraço', recoveryHours: 36 },
-  { id: 'chest', label: 'Peitoral', recoveryHours: 48 },
+  { id: 'chest', label: 'Peito', recoveryHours: 48 },
   { id: 'back', label: 'Costas', recoveryHours: 72 },
   { id: 'glutes', label: 'Glúteos', recoveryHours: 48 },
   { id: 'quads', label: 'Quadríceps', recoveryHours: 72 },
   { id: 'hamstrings', label: 'Posterior', recoveryHours: 72 },
   { id: 'calves', label: 'Panturrilhas', recoveryHours: 36 },
+];
+
+/** Basquete: pernas no salto/sprint + ombro/tríceps/antebraço no arremesso e drible. */
+export const BASKETBALL_MUSCLES = [
+  'quads',
+  'hamstrings',
+  'glutes',
+  'calves',
+  'shoulders',
+  'triceps',
+  'forearms',
+];
+
+/** Tags rápidas do plano: um toque adiciona ou remove no dia. */
+export const WORKOUT_TAGS = [
+  ...MUSCLE_GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    muscles: [group.id],
+  })),
+  {
+    id: 'basketball',
+    label: 'Basquete',
+    muscles: BASKETBALL_MUSCLES,
+  },
 ];
 
 export const RECOVERY_LEVELS = [
@@ -37,10 +62,18 @@ const NAME_HINTS = [
 ];
 
 const FULL_BODY_RE = /full\s*body|corpo\s*todo|fullbody|treino\s*completo|whole\s*body/i;
+const BASKETBALL_RE = /basquete|basketball|basket/i;
 
 export function guessMusclesFromName(name) {
   const text = String(name || '');
   if (!text.trim()) return [];
   if (FULL_BODY_RE.test(text)) return NAME_HINTS.map((hint) => hint.id);
+  if (BASKETBALL_RE.test(text)) return [...BASKETBALL_MUSCLES];
   return NAME_HINTS.filter((hint) => hint.re.test(text)).map((hint) => hint.id);
+}
+
+export function findWorkoutTag(name) {
+  const text = String(name || '').trim().toLowerCase();
+  if (!text) return null;
+  return WORKOUT_TAGS.find((tag) => tag.label.toLowerCase() === text) || null;
 }
